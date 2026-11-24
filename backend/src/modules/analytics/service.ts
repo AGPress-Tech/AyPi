@@ -1,3 +1,4 @@
+import {stockAnalysisQuery} from './stock-analysis';
 import {barContractsQuery} from './bar-contracts';
 import { loadAnalyticsConfig, AnalyticsConfig } from "./config";
 import { queryDefinition, queryParameters } from "./catalog";
@@ -123,6 +124,19 @@ export function createAnalyticsService(getConfig=loadAnalyticsConfig, driver=sql
         const result=await request.query(`SELECT TOP (101) Item AS code,Description AS description,BaseUoM AS unit,Disabled AS disabled FROM dbo.MA_Items WHERE ${exact?'Item=@search':'Item LIKE @search OR Description LIKE @search'} ORDER BY Item`);
         return {articles:result.recordset.slice(0,100).map((r:any)=>({...r,code:String(r.code).trim(),description:String(r.description||'').trim(),unit:String(r.unit||'').trim(),disabled:r.disabled===true||String(r.disabled)==='1'})),more:result.recordset.length>100,queriedAt:new Date().toISOString()};
     }
-    return {config,query,articleOrders,articleOffers,customerSearch,customerAnalysis,documentLinks,bomAnalysis,barContracts,supplierDirectory,articleDirectory,async close(){const current=poolPromise;poolPromise=null;configPromise=null;if(current)await(await current).close();}};
+    async function stockAnalysis(input:unknown={}){
+        const definition=stockAnalysisQuery(input);
+        if(articleRequests>=3)throw Error('Altre ricerche sono in corso. Riprovare tra qualche secondo.');
+        articleRequests++;
+        try{
+            const request=(await pool()).request();
+            for(const key of ['year','period'] as const)request.input(key,driver.Int,definition.filters[key]??null);
+            for(const key of ['article','supplierCode','customerCode'] as const)request.input(key,driver.VarChar(128),definition.filters[key]??null);
+            const result=await request.query(definition.sql),rows=result.recordsets[0];
+            if(rows.length>100000)throw Error('Oltre 100.000 posizioni: lettura completa non disponibile.');
+            return {rows:rows.map((r:any)=>Object.fromEntries(Object.entries(r).map(([k,v])=>[k,v instanceof Date?v.toISOString():v]))),periods:result.recordsets[1],selected:result.recordsets[2][0],queriedAt:new Date().toISOString()};
+        }finally{articleRequests--;}
+    }
+    return {stockAnalysis,config,query,articleOrders,articleOffers,customerSearch,customerAnalysis,documentLinks,bomAnalysis,barContracts,supplierDirectory,articleDirectory,async close(){const current=poolPromise;poolPromise=null;configPromise=null;if(current)await(await current).close();}};
 }
 export const analyticsService=createAnalyticsService();

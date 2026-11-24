@@ -14,12 +14,11 @@ export function registerAnalysisTarget(id:AnalysisTarget,open:()=>Promise<Browse
 async function destinationExists(target:AnalysisTarget,context:AnalysisContext):Promise<boolean>{
     try{
         if(!modules.has(target))return false;
-        if(target==='bar-contracts'||target==='supplier-evaluation')return await modules.get(target)?.exists?.(context)??false;
+        const module=modules.get(target)!;if(module.exists)return await module.exists(context);
         if(target==='bom-analysis'){
             const result=await requestAypiBackend('/api/erp/bom-analysis',{method:'POST',body:context.bom?{bom:context.bom}:{article:context.article}});
             return result.rows?.length>0;
         }
-        if(target==='turning-analysis')return await modules.get(target)?.exists?.(context)??false;
         if(target==='customer-analysis'){
             const result=await requestAypiBackend('/api/erp/customer-search',{method:'POST',body:{search:context.customerCode||context.customerName}});
             const same=(a:string,b?:string)=>!!b&&a?.trim().toLocaleLowerCase('it')===b.trim().toLocaleLowerCase('it');
@@ -29,6 +28,61 @@ async function destinationExists(target:AnalysisTarget,context:AnalysisContext):
         return result.rows?.length>0;
     }catch{return false;}
 }
+function observeContextWindow(contents:WebContents){
+    const id=contents.id;if(observed.has(id))return;
+    observed.add(id);contents.on('did-start-loading',()=>ready.delete(id));
+    contents.once('destroyed',()=>{ready.delete(id);pending.delete(id);observed.delete(id);});
+}
+async function navigateAnalysis(target:AnalysisTarget,context:AnalysisContext){
+    const module=modules.get(target);if(!module)throw Error('Modulo non disponibile.');
+    const win=await module.open();
+    if(Object.keys(context).length&&!win.isDestroyed()){
+        const id=win.webContents.id;observeContextWindow(win.webContents);
+        if(ready.has(id))win.webContents.send('analysis-open-context',context);else pending.set(id,context);
+    }
+    return {ok:true};
+}
+export async function relatedAnalysisMenuItems(source:string,payload:unknown,sender:WebContents):Promise<Electron.MenuItemConstructorOptions[]>{
+    const context=validateAnalysisContext(payload),items:Electron.MenuItemConstructorOptions[]=[],candidates:{target:AnalysisTarget;label:string;context:AnalysisContext}[]=[];
+    const add=(target:AnalysisTarget,label:string,value:AnalysisContext)=>{
+        if(target===source)return;
+        candidates.push({target,label,context:value});
+    };
+    if(context.article){
+        add('bar-contracts','Mostra contratti barra collegati all’articolo',{article:context.article});
+        add('stock-analysis','Mostra giacenze dell’articolo',{article:context.article});
+        add('processing-cycles','Mostra cicli di lavorazione dell’articolo',{article:context.article});
+        add('tooling','Mostra utensili e attrezzature dell’articolo',{article:context.article});
+        add('article-orders','Mostra articolo in Analisi venduto',{article:context.article});
+        add('article-offers','Mostra articolo in Analisi offerte',{article:context.article});
+        add('turning-analysis','Mostra dettagli Analisi Torneria',{article:context.article});
+        add('bom-analysis','Mostra distinte che contengono l’articolo',{article:context.article});
+        add('bom-analysis','Mostra composizione distinta',{bom:context.article});
+    }
+    if(context.bom){
+        add('bar-contracts','Mostra contratti barra collegati all’articolo',{article:context.bom});
+        add('stock-analysis','Mostra giacenze dell’articolo',{article:context.bom});
+        add('processing-cycles','Mostra cicli di lavorazione dell’articolo',{article:context.bom});
+        add('tooling','Mostra utensili e attrezzature dell’articolo',{article:context.bom});
+        add('bom-analysis','Mostra composizione distinta',{bom:context.bom});
+        add('article-orders','Mostra articolo in Analisi venduto',{article:context.bom});
+        add('article-offers','Mostra articolo in Analisi offerte',{article:context.bom});
+        add('turning-analysis','Mostra dettagli Analisi Torneria',{article:context.bom});
+    }
+    if(context.customerCode)add('stock-analysis','Mostra giacenze associate al cliente',{customerCode:context.customerCode});
+    if(context.customerCode||context.customerName)add('customer-analysis','Mostra cliente in Analisi per cliente',{...(context.customerCode?{customerCode:context.customerCode}:{}),...(context.customerName?{customerName:context.customerName}:{})});
+    if(context.customerName)add('turning-analysis','Mostra produzioni del cliente in Analisi Torneria',{...(context.customerCode?{customerCode:context.customerCode}:{}),customerName:context.customerName});
+    if(context.documentId&&context.documentKind)add(context.documentKind==='order'?'article-orders':'article-offers',context.documentKind==='order'?'Mostra ordine in Analisi venduto':'Mostra offerta in Analisi offerte',{documentId:context.documentId,documentNo:context.documentNo,documentKind:context.documentKind});
+    if(context.supplierCode){
+        add('stock-analysis','Mostra giacenze associate al fornitore',{supplierCode:context.supplierCode});
+        add('supplier-evaluation','Analizza fornitore in Valutazione fornitori',{supplierCode:context.supplierCode});
+        add('bar-contracts','Mostra contratti barra del fornitore',{supplierCode:context.supplierCode});
+    }
+    const available=await Promise.all(candidates.map(async item=>({item,exists:await destinationExists(item.target,item.context)})));
+    if(sender.isDestroyed())return [];
+    for(const {item,exists} of available)if(exists)items.push({label:item.label,click:()=>void navigateAnalysis(item.target,item.context).catch(error=>{if(!sender.isDestroyed())sender.send('analysis-navigation-error',(error as Error).message);})});
+    return items;
+}
 export function canOpenAnalysis(sender:WebContents){return sender===main?.webContents||sender===hub?.webContents||[...modules.values()].some(m=>m.owns({sender}))||[...additionalSources].some(owns=>owns({sender}));}
 export function registerAnalysisNavigation(mainWindow:BrowserWindow,icon:()=>string){
     registerAnalysisUiPreferences();
@@ -36,21 +90,9 @@ export function registerAnalysisNavigation(mainWindow:BrowserWindow,icon:()=>str
     ipcMain.on('analysis-context-ready',event=>{
         if(![...modules.values()].some(m=>m.owns(event)))return;
         const contents=event.sender,id=contents.id;ready.add(id);
-        if(!observed.has(id)){
-            observed.add(id);contents.on('did-start-loading',()=>ready.delete(id));
-            contents.once('destroyed',()=>{ready.delete(id);pending.delete(id);observed.delete(id);});
-        }
+        observeContextWindow(contents);
         const context=pending.get(id);if(context){pending.delete(id);contents.send('analysis-open-context',context);}
     });
-    const navigate=async(target:AnalysisTarget,context:AnalysisContext)=>{
-        const module=modules.get(target);if(!module)throw Error('Modulo non disponibile.');
-        const win=await module.open();
-        if(Object.keys(context).length&&!win.isDestroyed()){
-            const id=win.webContents.id;
-            if(ready.has(id))win.webContents.send('analysis-open-context',context);else pending.set(id,context);
-        }
-        return {ok:true};
-    };
     ipcMain.handle('commercial-analysis-open',async event=>{
         if(!canOpenAnalysis(event.sender))return {ok:false,error:'Finestra non autorizzata.'};
         if(hub&&!hub.isDestroyed()){hub.maximize();hub.show();hub.focus();return {ok:true};}
@@ -69,42 +111,13 @@ export function registerAnalysisNavigation(mainWindow:BrowserWindow,icon:()=>str
     ipcMain.handle('analysis-navigate',async(event,payload)=>{
         try{
             if(!canOpenAnalysis(event.sender)||!ANALYSIS_TARGETS.includes(payload?.target))throw Error('Collegamento non autorizzato.');
-            return await navigate(payload.target,validateAnalysisContext(payload.context));
+            return await navigateAnalysis(payload.target,validateAnalysisContext(payload.context));
         }catch(error){return {ok:false,error:(error as Error).message};}
     });
     ipcMain.handle('analysis-context-menu',async(event,payload)=>{
         try{
             const source=[...modules].find(([,m])=>m.owns(event))?.[0]||([...additionalSources].some(owns=>owns(event))?'operational-module':null);if(!source)throw Error('Finestra non autorizzata.');
-            const context=validateAnalysisContext(payload),items:Electron.MenuItemConstructorOptions[]=[],candidates:{target:AnalysisTarget;label:string;context:AnalysisContext}[]=[];
-            const add=(target:AnalysisTarget,label:string,value:AnalysisContext)=>{
-                if(target===source)return;
-                candidates.push({target,label,context:value});
-            };
-            if(context.article){
-                add('bar-contracts','Mostra contratti barra collegati all’articolo',{article:context.article});
-                add('article-orders','Mostra articolo in Analisi venduto',{article:context.article});
-                add('article-offers','Mostra articolo in Analisi offerte',{article:context.article});
-                add('turning-analysis','Mostra dettagli Analisi Torneria',{article:context.article});
-                add('bom-analysis','Mostra distinte che contengono l’articolo',{article:context.article});
-                add('bom-analysis','Mostra composizione distinta',{bom:context.article});
-            }
-            if(context.bom){
-                add('bar-contracts','Mostra contratti barra collegati all’articolo',{article:context.bom});
-                add('bom-analysis','Mostra composizione distinta',{bom:context.bom});
-                add('article-orders','Mostra articolo in Analisi venduto',{article:context.bom});
-                add('article-offers','Mostra articolo in Analisi offerte',{article:context.bom});
-                add('turning-analysis','Mostra dettagli Analisi Torneria',{article:context.bom});
-            }
-            if(context.customerCode||context.customerName)add('customer-analysis','Mostra cliente in Analisi per cliente',{...(context.customerCode?{customerCode:context.customerCode}:{}),...(context.customerName?{customerName:context.customerName}:{})});
-            if(context.customerName)add('turning-analysis','Mostra produzioni del cliente in Analisi Torneria',{...(context.customerCode?{customerCode:context.customerCode}:{}),customerName:context.customerName});
-            if(context.documentId&&context.documentKind)add(context.documentKind==='order'?'article-orders':'article-offers',context.documentKind==='order'?'Mostra ordine in Analisi venduto':'Mostra offerta in Analisi offerte',{documentId:context.documentId,documentNo:context.documentNo,documentKind:context.documentKind});
-            if(context.supplierCode){
-                add('supplier-evaluation','Analizza fornitore in Valutazione fornitori',{supplierCode:context.supplierCode});
-                add('bar-contracts','Mostra contratti barra del fornitore',{supplierCode:context.supplierCode});
-            }
-            const available=await Promise.all(candidates.map(async item=>({item,exists:await destinationExists(item.target,item.context)})));
-            if(event.sender.isDestroyed())return {ok:true};
-            for(const {item,exists} of available)if(exists)items.push({label:item.label,click:()=>void navigate(item.target,item.context).catch(error=>{if(!event.sender.isDestroyed())event.sender.send('analysis-navigation-error',(error as Error).message);})});
+            const items=await relatedAnalysisMenuItems(source,payload,event.sender);
             if(!items.length)return {ok:true};
             Menu.buildFromTemplate(items).popup({window:BrowserWindow.fromWebContents(event.sender)||undefined});return {ok:true};
         }catch(error){return {ok:false,error:(error as Error).message};}

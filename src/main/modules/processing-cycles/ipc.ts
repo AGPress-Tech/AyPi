@@ -1,3 +1,4 @@
+import {registerAnalysisTarget} from '../analysis-navigation';
 import {BrowserWindow,ipcMain,shell,dialog} from 'electron';
 import path from 'path';
 import {requestAypiBackend} from '../file-manager/backend-client';
@@ -13,6 +14,11 @@ export function registerProcessingCyclesIpc(main:BrowserWindow,icon:()=>string){
         win.webContents.setWindowOpenHandler(()=>({action:'deny'}));win.webContents.on('will-navigate',event=>event.preventDefault());win.once('ready-to-show',()=>{if(!win.isDestroyed())win.show()});win.on('closed',()=>{if(window===win)window=null});
         const theme=/[?&]theme=bluearchive(?:&|$)/.test(main.webContents.getURL())?'bluearchive':'standard';await win.loadFile(path.join(__dirname,'..','..','pages','processing-cycles.html'),{query:{theme}});return win;
     }
+    registerAnalysisTarget('processing-cycles',open,e=>!!owns(e),async context=>{
+        if(!context.article)return false;
+        const data=await requestAypiBackend('/api/processing-cycles/items');
+        return data.items?.some((item:any)=>String(item.codiceProdotto||'').trim().toLocaleLowerCase('it')===context.article!.toLocaleLowerCase('it'))??false;
+    });
     ipcMain.handle('processing-cycles-open',async e=>{if(e.sender!==main.webContents)return {ok:false};await open();return {ok:true}});
     ipcMain.handle('processing-cycles-request',async(e,p)=>{
         if(!owns(e))return {ok:false,error:'Finestra non autorizzata.'};

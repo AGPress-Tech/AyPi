@@ -49,7 +49,8 @@ input[type=checkbox] { accent-color:var(--ops-accent,#b68825); }
 .metrics strong { display:block; font-size:25px; font-weight:650; letter-spacing:-.6px; margin-top:5px; font-variant-numeric:tabular-nums; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 #residual { font-size:21px; }
 .results-panel { flex:1; }
-.results-heading { display:flex; align-items:center; gap:10px; padding:14px 16px 8px; }
+/* Keep column menus above sticky headers, including nested contract/order tables. */
+.results-heading { position:relative; z-index:12; display:flex; align-items:center; gap:10px; padding:14px 16px 8px; }
 .results-heading p { margin:4px 0 0; font-size:12px; color:var(--ops-muted,#7d7566); }
 #columns { position:relative; margin-left:auto; }
 #columns>summary { border:1px solid var(--ops-line,#e2dccc); border-radius:7px; padding:7px 10px; font-size:12px; white-space:nowrap; }

@@ -9,12 +9,11 @@ import { requestAypiBackend } from '../file-manager/backend-client';
 import { getAddressEntry } from '../file-manager/address-book';
 import { excelDateCell, formatExcelNumbers } from '../analysis-excel';
 import { validateWorkspace } from '../analysis-ui-model';
-import {registerAnalysisSource} from '../analysis-navigation';
+import {registerAnalysisTarget} from '../analysis-navigation';
 const execute = promisify(execFile);
 export function registerToolingIpc(mainWindow: BrowserWindow, icon: () => string) {
     let window: BrowserWindow | null = null, actor = '', groups: Record<string, string[]> = {}, importing = false, exporting = false;
     const owns = (e: any) => !!window && !window.isDestroyed() && e.sender === window.webContents;
-    registerAnalysisSource(e=>owns(e)&&!!actor);
     const request = (url: string, options: any = {}) => { if (!actor)
         throw Error('Seleziona un dipendente per accedere.'); return requestAypiBackend('/api/tooling/' + url, { ...options, headers: { 'x-aypi-actor': actor, 'x-aypi-user': actor, 'x-aypi-role': 'employee' } }); };
     const result = async (fn: () => Promise<any>) => { try {
@@ -49,6 +48,11 @@ export function registerToolingIpc(mainWindow: BrowserWindow, icon: () => string
             win.close(); });
         return win;
     };
+    registerAnalysisTarget('tooling',open,e=>owns(e)&&!!actor,async context=>{
+        if(!actor||!context.article)return false;
+        const data=await request('snapshot'),ids=new Set(data.articles.filter((a:any)=>a.erpCode&&String(a.erpCode).toLocaleLowerCase('it')===context.article!.toLocaleLowerCase('it')).map((a:any)=>a.id));
+        return data.links.some((link:any)=>ids.has(link.articleId));
+    });
     ipcMain.handle('tooling-employees', e => !owns(e) ? { ok: false } : result(async () => { const data = await requestAypiBackend('/api/tooling/employees'); groups = data.groups; return data; }));
     ipcMain.handle('tooling-login', (e, name) => !owns(e) ? { ok: false } : result(async () => { const found = Object.values(groups).flat().find(v => typeof name === 'string' && v.toLocaleLowerCase('it') === name.trim().toLocaleLowerCase('it')); if (!found)
         throw Error('Seleziona un dipendente dall’elenco.'); actor = found; return { actor, ...await request('snapshot') }; }));
@@ -178,7 +182,7 @@ export function registerToolingIpc(mainWindow: BrowserWindow, icon: () => string
     }));
     const esc=(v:any)=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c]!);
     ipcMain.handle('tooling-export',(e,p)=>!owns(e)||!actor||exporting?{ok:false}:result(async()=>{exporting=true;try{
-        const data=await request('snapshot'),ids=new Set(Array.isArray(p?.ids)?p.ids:[]),tools=data.tools.filter(t=>ids.has(t.id)),toolIds=new Set(tools.map(t=>t.id)),from=typeof p?.from==='string'?p.from:'',to=typeof p?.to==='string'?p.to:'',events=data.movements.filter(m=>toolIds.has(m.toolId)&&(!from||m.date>=from)&&(!to||m.date<=to)&&(!p?.articleId||m.articleId===p.articleId)&&(!Array.isArray(p?.movementIds)||p.movementIds.includes(m.id))),name=(id:string)=>data.tools.find(t=>t.id===id)?.code||id,article=(id:string)=>{const a=data.articles.find(a=>a.id===id);return a?.erpCode||a?.code||'';};
+        const data=await request('snapshot'),ids=new Set(Array.isArray(p?.ids)?p.ids:[]),tools=data.tools.filter(t=>ids.has(t.id)),toolIds=new Set(tools.map(t=>t.id)),filteredArticleIds=new Set(data.articles.filter(a=>typeof p?.articleId==='string'&&p.articleId.startsWith('erp:')?a.erpCode&&String(a.erpCode).toLocaleLowerCase('it')===p.articleId.slice(4).toLocaleLowerCase('it'):a.id===p?.articleId).map(a=>a.id)),from=typeof p?.from==='string'?p.from:'',to=typeof p?.to==='string'?p.to:'',events=data.movements.filter(m=>toolIds.has(m.toolId)&&(!from||m.date>=from)&&(!to||m.date<=to)&&(!p?.articleId||filteredArticleIds.has(m.articleId))&&(!Array.isArray(p?.movementIds)||p.movementIds.includes(m.id))),name=(id:string)=>data.tools.find(t=>t.id===id)?.code||id,article=(id:string)=>{const a=data.articles.find(a=>a.id===id);return a?.erpCode||a?.code||'';};
         const monthYears=[...new Set<string>([data.today.slice(0,4),...events.filter(m=>m.type==='breakage'&&!m.voided).map(m=>m.date.slice(0,4))])].sort(),monthly=monthYears.flatMap(year=>Array.from({length:12},(_,i)=>{const month=year+'-'+String(i+1).padStart(2,'0'),ruptures=events.filter(m=>m.type==='breakage'&&!m.voided&&m.date.startsWith(month));return [month,ruptures.length,ruptures.reduce((sum,m)=>sum+m.quantity,0)];}));
         if(p?.format==='pdf'){
             const save=await dialog.showSaveDialog(window!,{title:'Report utensili',defaultPath:'Report utensili.pdf',filters:[{name:'PDF',extensions:['pdf']}]});if(save.canceled||!save.filePath)return {canceled:true};
@@ -187,7 +191,7 @@ export function registerToolingIpc(mainWindow: BrowserWindow, icon: () => string
         }
         const book=XLSX.utils.book_new(),sheet=(title:string,headers:string[],rows:any[][])=>{const ws=XLSX.utils.aoa_to_sheet([headers,...rows]);formatExcelNumbers(ws);ws['!autofilter']={ref:ws['!ref']||'A1'};XLSX.utils.book_append_sheet(book,ws,title);};
         sheet('Utensili',['Codice','Descrizione','Tipo','Categoria','Misure','Ubicazione','Creatore / fornitore','Cliente','Quantitativo Iniziale','Danneggiate iniziali','Quantitativo Rimanente','Utensili/Attrezzature Danneggiate','Quantitativo attualmente presente','Danneggiati %','Scorta minima','Da reintegrare','Stato','Note'],tools.map(t=>[t.code,t.description,t.kind,t.category,t.dimensions,t.location,t.supplier,t.customer,t.initialUsable+t.initialDamaged,t.initialDamaged,t.usable,t.damaged,t.total,t.damagePercent,t.minimum,t.reorder,t.status,t.notes]));
-        const links=data.links.filter(l=>toolIds.has(l.toolId)&&(!p?.articleId||l.articleId===p.articleId)&&(!Array.isArray(p?.linkIds)||p.linkIds.includes(l.id))),articleIds=new Set([...links.map(l=>l.articleId),...(Array.isArray(p?.articleIds)?p.articleIds:[])]);
+        const links=data.links.filter(l=>toolIds.has(l.toolId)&&(!p?.articleId||filteredArticleIds.has(l.articleId))&&(!Array.isArray(p?.linkIds)||p.linkIds.includes(l.id))),articleIds=new Set([...links.map(l=>l.articleId),...(Array.isArray(p?.articleIds)?p.articleIds:[])]);
         sheet('Articoli', ['Codice storico','Codice ERP','Descrizione','Ubicazione attrezzatura','Note'],data.articles.filter(a=>articleIds.has(a.id)).map(a=>[a.code,a.erpCode,a.description,a.location,a.notes]));
         sheet('Dotazioni articolo',['Articolo','Utensile','Fase','Macchina','Richiesti','Disponibili','Mancanti','Disponibilità','Note'],links.map(l=>[article(l.articleId),name(l.toolId),l.operation,l.machine,l.required,l.usable,l.shortage,l.ready?'Disponibile':'Da verificare',l.notes]));
         sheet('Rotture mensili',['Mese','Registrazioni di rottura','Pezzi danneggiati'],monthly);

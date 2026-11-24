@@ -3,7 +3,7 @@ import fs from 'fs';import path from 'path';import {execFile} from 'child_proces
 import * as XLSX from 'xlsx';
 import {requestAypiBackend} from '../file-manager/backend-client';import {getAddressEntry} from '../file-manager/address-book';
 import {excelDateCell,excelNumberFormat} from '../analysis-excel';import {validateWorkspace} from '../analysis-ui-model';
-import {registerAnalysisTarget} from '../analysis-navigation';
+import {registerAnalysisTarget,relatedAnalysisMenuItems} from '../analysis-navigation';
 const execute=promisify(execFile);
 export function registerSupplierEvaluationIpc(main:BrowserWindow,icon:()=>string){
     let window:BrowserWindow|null=null,actor='',groups:Record<string,string[]>={},importing=false,preview:any=null;
@@ -32,7 +32,13 @@ export function registerSupplierEvaluationIpc(main:BrowserWindow,icon:()=>string
         throw Error('Operazione non valida.');
     })});
     ipcMain.handle('supplier-evaluation-context',async(e,p)=>{if(!owns(e)||!actor||typeof p?.id!=='string')return {ok:false};const send=(action:string)=>{if(!e.sender.isDestroyed())e.sender.send('supplier-evaluation-action',{id:p.id,kind:p.kind,action})};
-        const entries=p.kind==='record'?[{label:'Modifica valutazione',click:()=>send('edit')},{label:'Elimina valutazione',click:()=>send('delete')}]:[{label:'Analizza fornitore',click:()=>send('analyze')},{label:'Modifica classificazione / collegamento',click:()=>send('edit')}];Menu.buildFromTemplate(entries).popup({window:window!});return {ok:true};});
+        const entries:Electron.MenuItemConstructorOptions[]=p.kind==='record'?[{label:'Modifica valutazione',click:()=>send('edit')},{label:'Elimina valutazione',click:()=>send('delete')}]:[{label:'Analizza fornitore',click:()=>send('analyze')},{label:'Modifica classificazione / collegamento',click:()=>send('edit')}];if(p.relatedSuppliers!==undefined){
+            if(!Array.isArray(p.relatedSuppliers)||p.relatedSuppliers.length>100||p.relatedSuppliers.some((code:any)=>typeof code!=='string'||!code.trim()||code.length>128))return {ok:false,error:'Fornitori collegati non validi.'};
+            const codes=[...new Set<string>(p.relatedSuppliers)],related:Electron.MenuItemConstructorOptions[]=[];
+            for(const code of codes){const links=await relatedAnalysisMenuItems('supplier-evaluation',{supplierCode:code},e.sender);if(links.length)related.push(...(codes.length===1?links:[{label:'Fornitore '+code,submenu:links}]));}
+            if(related.length)entries.push({type:'separator'},{label:'Apri in altri moduli AyPi',submenu:related});
+        }
+        if(!e.sender.isDestroyed())Menu.buildFromTemplate(entries).popup({window:window!});return {ok:true};});
     ipcMain.handle('supplier-evaluation-pick-attachments',async e=>{if(!owns(e)||!actor)return {ok:false};return result(async()=>{const chosen=await dialog.showOpenDialog(window!,{title:'Allega documenti alla valutazione',properties:['openFile','multiSelections']});const attachments=[];for(const file of chosen.filePaths){const stat=await fs.promises.stat(file);if(!stat.isFile()||stat.size>20*1024*1024)throw Error('Il singolo allegato deve essere un file entro 20 MiB.');attachments.push({name:path.basename(file),...(file.startsWith('\\\\')?{path:file}:{fileName:path.basename(file),dataFilePath:file})});}return {attachments};})});
     ipcMain.handle('supplier-evaluation-open-attachment',async(e,id)=>{if(!owns(e)||typeof id!=='string')return {ok:false};return result(async()=>{const a=await request('attachment/'+encodeURIComponent(id));let file=a.path;if(!file){const folder=await fs.promises.mkdtemp(path.join(app.getPath('temp'),'aypi-supplier-evidence-'));file=path.join(folder,path.basename(a.name||'allegato'));await fs.promises.writeFile(file,Buffer.from(a.dataBase64,'base64'));}const error=await shell.openPath(file);if(error)throw Error(error);return {};})});
     ipcMain.handle('supplier-evaluation-import',async(e,p)=>{if(!owns(e)||!actor)return {ok:false};return result(async()=>{

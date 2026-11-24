@@ -1,4 +1,4 @@
-export const ANALYSIS_TARGETS=['article-orders','article-offers','customer-analysis','turning-analysis','bom-analysis','bar-contracts','supplier-evaluation'] as const;
+export const ANALYSIS_TARGETS=['article-orders','article-offers','customer-analysis','turning-analysis','bom-analysis','bar-contracts','stock-analysis','supplier-evaluation','processing-cycles','tooling'] as const;
 export type AnalysisTarget=typeof ANALYSIS_TARGETS[number];
 export type AnalysisContext={article?:string;bom?:string;customerCode?:string;customerName?:string;supplierCode?:string;supplierName?:string;documentId?:string;documentNo?:string;documentKind?:'order'|'offer'};
 export function validateAnalysisContext(value:unknown):AnalysisContext {

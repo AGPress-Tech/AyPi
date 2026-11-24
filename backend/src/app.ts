@@ -230,7 +230,7 @@ export async function startBackendServer(): Promise<BackendServerHandle> {
                 initializeFeriePermessiSqliteStore();
                 initializeProductManagerSqliteStore();
                 initializeTicketSupportSqliteStore();
-                try { initializeSupplierEvaluation(); } catch (error) { logger.error("Supplier evaluation import failed", {module:"supplier-evaluation", detail:error instanceof Error?error.message:String(error)}); }
+                try { initializeSupplierEvaluation(); } catch (error) { logger.error("Supplier evaluation initialization failed", {module:"supplier-evaluation", detail:error instanceof Error?error.message:String(error)}); }
                 initializeTransferSqliteStore();
                 initializeHaasSqliteStore();
                 initializeProductionPlannerSqliteStore();

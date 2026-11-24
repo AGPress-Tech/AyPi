@@ -83,6 +83,7 @@ export function importSupplierSource(source:any,actor:string,apply:boolean,erp?:
         setMeta(db,'importInfo',report);audit(db,'import','access',actor,null,report);});}
     return report;
 }
-export function initializeSupplierEvaluation(){schema();const file=process.env.AYPI_SUPPLIER_SEED_FILE||path.resolve(__dirname,'../../../..','supplier-evaluation-import.json');if(!fs.existsSync(file))return;const bytes=fs.readFileSync(file),hash=createHash('sha256').update(bytes).digest('hex');if(meta('seedHash')===hash)return;importSupplierSource(JSON.parse(bytes.toString('utf8').replace(/^\uFEFF/,'')),'Migrazione Access',true);runSqliteTransaction(db=>setMeta(db,'seedHash',hash));}
+/** Startup prepares the schema only. Access import is an explicit operation in the module. */
+export function initializeSupplierEvaluation(){schema();}
 export async function supplierImportPreview(source:any){const erp=(await directory(true)).suppliers;return importSupplierSource(source,'',false,erp);}
 export async function supplierImportApply(source:any,actor:string){const erp=(await directory()).suppliers;return importSupplierSource(source,actor,true,erp);}

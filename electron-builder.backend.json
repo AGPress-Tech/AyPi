@@ -31,10 +31,6 @@
         {
             "from": "backend/scripts",
             "to": "backend-scripts"
-        },
-        {
-            "from": ".private/supplier-evaluation-import.json",
-            "to": "supplier-evaluation-import.json"
         }
     ],
     "extraMetadata": {

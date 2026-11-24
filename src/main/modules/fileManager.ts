@@ -1,3 +1,4 @@
+import { registerStockAnalysisIpc } from './stock-analysis/ipc';
 import {registerToolingIpc} from './tooling/ipc';
 import {registerSupplierEvaluationIpc} from './supplier-evaluation/ipc';
 import {registerProcessingCyclesIpc} from './processing-cycles/ipc';
@@ -2555,6 +2556,7 @@ function setupFileManager(mainWindow) {
     registerCustomerAnalysisIpc(mainWindow,getInterfaceIconPath);
     registerBomAnalysisIpc(mainWindow,getInterfaceIconPath);
     registerBarContractsIpc(mainWindow,getInterfaceIconPath);
+    registerStockAnalysisIpc(mainWindow,getInterfaceIconPath);
 
     registerFilesystemDialogIpc({
         ipcMain,
