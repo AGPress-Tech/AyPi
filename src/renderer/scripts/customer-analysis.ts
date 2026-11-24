@@ -1,4 +1,5 @@
 import { analysisHtmlLegend } from "../modules/analysis-html-legend";
+import { enhanceDetailTable } from "../modules/analysis-detail-filters";
 import {
     articleOrders,
     articleLifecycle,
@@ -1557,13 +1558,13 @@ function cell(row: any, c: Column) {
     if (c.kind === "date") return esc(date(v));
     if (c.kind === "bool") return v == null ? "—" : v ? "Sì" : "No";
     if (c.kind === "number" || c.kind === "money")
-        return num(v, c.kind === "money" ? 2 : 4);
+        return num(v, 20);
     if (c.kind === "status")
         return `<span class="state-badge ${v === "Scaduto" ? "overdue" : v === "Consegnato" ? "delivered" : ""}">${esc(v)}</span>`;
     return esc(v ?? "—");
 }
 function tableMarkup(columns: Column[], data: any[], id: string) {
-    return `<table id="${id}"><thead><tr>${columns.map((c) => `<th>${esc(c.label)}</th>`).join("")}</tr></thead><tbody>${data.map((r) => `<tr>${columns.map((c) => `<td data-analysis-field="${c.key}" class="${["number", "money", "measure"].includes(c.kind ?? "") ? "numeric" : c.key === "description" ? "description" : ""}" title="${esc(Array.isArray(r[c.key]) ? measureText(r[c.key]) : (r[c.key] ?? ""))}">${cell(r, c)}</td>`).join("")}</tr>`).join("") || `<tr><td colspan="${columns.length}">Nessun risultato nei filtri selezionati</td></tr>`}</tbody></table>`;
+    return `<table id="${id}"><thead><tr>${columns.map((c) => `<th>${esc(c.label)}</th>`).join("")}</tr></thead><tbody>${data.map((r) => `<tr>${columns.map((c) => `<td data-analysis-field="${c.key}" ${c.kind === "article" ? `data-analysis-article="${esc(r.article)}"` : ""} class="${["number", "money", "measure"].includes(c.kind ?? "") ? "numeric" : c.key === "description" ? "description" : ""}" title="${esc(Array.isArray(r[c.key]) ? measureText(r[c.key]) : (r[c.key] ?? ""))}">${cell(r, c)}</td>`).join("")}</tr>`).join("") || `<tr><td colspan="${columns.length}">Nessun risultato nei filtri selezionati</td></tr>`}</tbody></table>`;
 }
 function renderTable() {
     const t = tableData(),
@@ -1790,11 +1791,13 @@ function openDocument(key: string) {
         `Dettaglio completo · ${rs.length} ${rs.length === 1 ? "riga" : "righe"}`;
     $("documentNote").title =
         "Tutte le righe disponibili nella lettura, compresi gli annullati; i filtri della dashboard non si applicano al dettaglio.";
-    $("documentBody").innerHTML = tableMarkup(
+    $("documentBody").innerHTML = '<div class="table-scroll">' + tableMarkup(
         rowColumns.filter((c) => c.kind !== "document"),
-        lineRows(rs),
+        lineRows(rs).slice(0, ROW_BATCH),
         "documentLines",
-    );
+    ) + '</div>';
+    continueTableOnScroll({table:$("documentLines") as HTMLTableElement,total:rs.length,initial:Math.min(ROW_BATCH,rs.length),append:(from,to)=>appendTableHtml($("documentLines") as HTMLTableElement,tableMarkup(rowColumns.filter(c=>c.kind!=="document"),lineRows(rs).slice(from,to),""))});
+    enhanceDetailTable($("documentLines") as HTMLTableElement, `customer-document:${rs[0].kind}`);
     const connections = document.createElement("details");
     connections.className = "document-connections";
     const heading = document.createElement("summary");
@@ -2119,12 +2122,19 @@ $("content").addEventListener("click", (event) => {
         "[data-expand-document]",
     );
     if (expandDocument) {
-        const [kind, id] = expandDocument.dataset.expandDocument!.split(":");
-        toggleDocumentLinks(
-            expandDocument,
-            kind as "order" | "offer",
-            Number(id),
-        );
+        const key = expandDocument.dataset.expandDocument!, parent = expandDocument.closest('tr')!, current = parent.nextElementSibling;
+        if (current?.classList.contains('customer-document-lines')) { current.remove(); expandDocument.setAttribute('aria-expanded','false'); expandDocument.textContent='▸'; return; }
+        const source = rows.filter(row => documentKey(row) === key);
+        if (!source.length) return;
+        const child = document.createElement('tr'); child.className='customer-document-lines';
+        const cell = document.createElement('td'); cell.colSpan=parent.children.length; child.append(cell); parent.after(child);
+        const id = 'customerDocumentLines-' + source[0].kind + '-' + source[0].documentId;
+        cell.innerHTML=`<div class="customer-inline-document"><strong>${source[0].kind==='order'?'Ordine':'Offerta'} ${esc(source[0].documentNo)} · Articoli del documento</strong><div class="table-scroll">${tableMarkup(rowColumns.filter(column=>column.kind!=='document'),lineRows(source).slice(0,ROW_BATCH),id)}</div><details class="document-connections"><summary>${source[0].kind==='order'?'Offerte collegate':'Ordini collegati'}</summary><div data-linked-host></div></details></div>`;
+        continueTableOnScroll({table:document.getElementById(id) as HTMLTableElement,total:source.length,initial:Math.min(ROW_BATCH,source.length),append:(from,to)=>appendTableHtml(document.getElementById(id) as HTMLTableElement,tableMarkup(rowColumns.filter(c=>c.kind!=="document"),lineRows(source).slice(from,to),""))});
+        enhanceDetailTable(document.getElementById(id) as HTMLTableElement, `customer-document:${source[0].kind}`);
+        const connections=cell.querySelector('details')!;let requested=false;
+        connections.addEventListener('toggle',()=>{if(connections.open&&!requested){requested=true;void loadDocumentLinks(cell.querySelector('[data-linked-host]')!,source[0].kind,Number(source[0].documentId));}});
+        expandDocument.setAttribute('aria-expanded','true'); expandDocument.textContent='▾';
         return;
     }
     const target = event.target as HTMLElement,

@@ -1,4 +1,4 @@
-import {stockAnalysisQuery} from './stock-analysis';
+import {stockAnalysisQuery,stockCustomerCommitmentsQuery} from './stock-analysis';
 import {barContractsQuery} from './bar-contracts';
 import { loadAnalyticsConfig, AnalyticsConfig } from "./config";
 import { queryDefinition, queryParameters } from "./catalog";
@@ -134,9 +134,22 @@ export function createAnalyticsService(getConfig=loadAnalyticsConfig, driver=sql
             for(const key of ['article','supplierCode','customerCode'] as const)request.input(key,driver.VarChar(128),definition.filters[key]??null);
             const result=await request.query(definition.sql),rows=result.recordsets[0];
             if(rows.length>100000)throw Error('Oltre 100.000 posizioni: lettura completa non disponibile.');
-            return {rows:rows.map((r:any)=>Object.fromEntries(Object.entries(r).map(([k,v])=>[k,v instanceof Date?v.toISOString():v]))),periods:result.recordsets[1],selected:result.recordsets[2][0],queriedAt:new Date().toISOString()};
+            const customerCommitments=result.recordsets[3]||[];
+            if(customerCommitments.length>100000)throw Error('Oltre 100.000 impegni clienti: lettura completa non disponibile.');
+            return {rows:rows.map((r:any)=>Object.fromEntries(Object.entries(r).map(([k,v])=>[k,v instanceof Date?v.toISOString():v]))),customerCommitments,commitmentsAvailable:result.recordsets.length>3,periods:result.recordsets[1],selected:result.recordsets[2][0],queriedAt:new Date().toISOString()};
         }finally{articleRequests--;}
     }
-    return {stockAnalysis,config,query,articleOrders,articleOffers,customerSearch,customerAnalysis,documentLinks,bomAnalysis,barContracts,supplierDirectory,articleDirectory,async close(){const current=poolPromise;poolPromise=null;configPromise=null;if(current)await(await current).close();}};
+    async function stockCustomerCommitments(input: unknown) {
+        const definition=stockCustomerCommitmentsQuery(input);
+        if(articleRequests>=3)throw Error('Altre ricerche sono in corso. Riprovare tra qualche secondo.');
+        articleRequests++;
+        try {
+            const request=(await pool()).request();request.input('article',driver.VarChar(128),definition.article);
+            const result=await request.query(definition.sql);
+            if(result.recordset.length>100000)throw Error('Oltre 100.000 righe ordine per questo articolo.');
+            return {rows:result.recordset.map((r:any)=>Object.fromEntries(Object.entries(r).map(([key,value])=>[key,value instanceof Date?value.toISOString().slice(0,10):value]))),queriedAt:new Date().toISOString()};
+        } finally {articleRequests--;}
+    }
+    return {stockAnalysis,stockCustomerCommitments,config,query,articleOrders,articleOffers,customerSearch,customerAnalysis,documentLinks,bomAnalysis,barContracts,supplierDirectory,articleDirectory,async close(){const current=poolPromise;poolPromise=null;configPromise=null;if(current)await(await current).close();}};
 }
 export const analyticsService=createAnalyticsService();

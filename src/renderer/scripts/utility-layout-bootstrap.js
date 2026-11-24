@@ -1,4 +1,6 @@
 (() => {
+  const filterStyle = document.createElement('link'); filterStyle.rel='stylesheet'; filterStyle.href=new URL('../styles/utilities/analysis-filters.css',document.currentScript.src).href; document.head.append(filterStyle);
+  const filterScript = document.createElement('script'); filterScript.defer=true; filterScript.src=new URL('../scripts/shared/analysis-filter-bootstrap.js',document.currentScript.src).href; document.head.append(filterScript);
   const sharedTableStyle = new URL('../styles/table-sorting.css', document.currentScript.src).href;
   document.addEventListener('DOMContentLoaded', () => {
     if (![...document.styleSheets].some(sheet => sheet.href === sharedTableStyle)) {

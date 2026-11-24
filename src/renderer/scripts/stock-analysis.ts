@@ -3,12 +3,13 @@ import {continueTableOnScroll} from '../modules/table-scroll-loader';
 import {bindSortingHeaders,updateSortingBar} from '../modules/table-sorting';
 import {installAnalysisLinks} from '../modules/analysis-links';
 import {contextFromAnalysisElement} from '../modules/document-links';
+import {renderStockCustomerCommitments} from '../modules/stock-customer-commitments';
 import type {AnalysisContext} from '../../main/modules/analysis-navigation-model';
 const ipc=require('electron').ipcRenderer;
 const $=<T extends HTMLElement=HTMLElement>(id:string)=>document.getElementById(id) as T;
 const esc=(v:unknown)=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c]!);
 const kpiNum=(v:unknown)=>new Intl.NumberFormat('it-IT',{maximumFractionDigits:3}).format(Number(v));
-const num=(v:unknown)=>new Intl.NumberFormat('it-IT',{maximumFractionDigits:6}).format(Number(v));
+const num=(v:unknown)=>new Intl.NumberFormat('it-IT',{maximumFractionDigits:20}).format(Number(v));
 let rows:StockRow[]=[],filtered:StockRow[]=[],groups:StockGroup[]=[],search=emptyStockSearch(),loaded=false,loading=false;
 let selected:StockPeriod[]=[],periodOptions:StockPeriod[]=[],queriedAt='';
 let preferences:StockPreferences={version:1,columns:[...DEFAULT_STOCK_COLUMNS],presets:[]};
@@ -36,7 +37,10 @@ function renderFilters(){
 }
 function updateStorageCount(){$('storageCount').textContent=search.storages.length?String(search.storages.length):'Tutti';}
 function contextAttributes(row:StockRow,key:string){if(key==='article')return `data-analysis-article="${esc(row.article)}"`;if(['subjectName','subjectCode'].includes(key)&&row.subjectCode&&['Cliente','Fornitore'].includes(row.subjectKind))return row.subjectKind==='Cliente'?`data-analysis-customer-code="${esc(row.subjectCode)}"`:`data-analysis-supplier-code="${esc(row.subjectCode)}"`;return '';}
-function cells(row:StockRow,columns:typeof STOCK_COLUMNS,arrow=''){return columns.map((c,i)=>{const text=format(row,c);return `<td data-column="${c.key}" ${contextAttributes(row,c.key)} ${c.key==='warnings'&&row.warnings?'data-warning="true"':''} class="${c.kind==='number'?'numeric':''}" title="${esc(c.kind==='number'&&row[c.key]!=null?'Valore originale: '+String(row[c.key]):text)}">${i===0?arrow:''}${esc(text)}</td>`;}).join('');}
+function cells(row:StockRow,columns:typeof STOCK_COLUMNS,arrow=''){return columns.map((c,i)=>{const text=format(row,c);let content=esc(text);
+    if(c.key==='customerQuantities'&&row.customerBreakdown?.length)content=`<div class="stock-customer-shares">${row.customerBreakdown.map(value=>`<span data-analysis-customer-code="${esc(value.customerCode)}">${esc(value.customerName||value.customerCode||'Cliente non risolto')} <b>${value.quantity===null?'—':num(value.quantity)}</b> ${esc(value.unit||'U.M. non indicata')}</span>`).join('')}</div>`;
+    if(c.key==='customerCommitments'&&row.currentCustomerOrders?.length)content=`<div class="stock-customer-shares">${row.currentCustomerOrders.map(value=>`<span data-analysis-customer-code="${esc(value.customerCode)}">${esc(value.customerName||value.customerCode||'Cliente non risolto')} <b>${value.residual==null?'—':num(value.residual)}</b> ${esc(value.unit||'U.M. non indicata')}${value.missingQuantities?' *':''}</span>`).join('')}</div>`;
+    return `<td data-column="${c.key}" ${contextAttributes(row,c.key)} ${c.key==='warnings'&&row.warnings?'data-warning="true"':''} class="${c.kind==='number'?'numeric':''}" title="${esc(c.kind==='number'&&row[c.key]!=null?'Valore originale: '+String(row[c.key]):text)}">${i===0?arrow:''}${content}</td>`;}).join('');}
 function groupMarkup(data:StockGroup[],columns:typeof STOCK_COLUMNS){return data.map(group=>`<tr data-stock-group="${esc(group.key)}">${cells(group.row,columns,`<button type="button" class="document-expand" data-expand-stock="${esc(group.key)}" aria-expanded="${expanded.has(group.key)}" aria-label="Mostra o nascondi magazzini di ${esc(group.row.article)}">${expanded.has(group.key)?'▾':'▸'}</button>`)}</tr>`).join('');}
 function headers(table:HTMLTableElement,columns:typeof STOCK_COLUMNS){table.tHead!.innerHTML='<tr>'+columns.map(c=>`<th class="${c.kind==='number'?'numeric':''}">${esc(c.label)}</th>`).join('')+'</tr>';bindSortingHeaders(table,columns,search.sort,sort=>{search={...search,sort};render();});}
 function toggleDetails(button:HTMLButtonElement){
@@ -47,7 +51,9 @@ function toggleDetails(button:HTMLButtonElement){
     const panel=document.createElement('div');panel.className='stock-detail';panel.id='stockDetail'+(++detailId);panel.style.width=Math.max(200,parent.closest('table')!.parentElement!.clientWidth-40)+'px';
     const title=document.createElement('strong');title.textContent=group.row.article+' · '+group.details.length+' posizioni';
     const scroll=document.createElement('div');scroll.className='table-scroll';scroll.tabIndex=0;scroll.setAttribute('aria-label','Dettaglio magazzini '+group.row.article);
-    const table=document.createElement('table');table.innerHTML='<thead></thead><tbody></tbody>';scroll.append(table);panel.append(title,scroll);cell.append(panel);
+    const table=document.createElement('table');table.innerHTML='<thead></thead><tbody></tbody>';scroll.append(table);panel.append(title,scroll);
+    const commitments=document.createElement('details');commitments.className='stock-customer-orders';commitments.innerHTML='<summary>Impegni clienti attuali · ordini aperti</summary><div></div>';let requested=false;
+    commitments.addEventListener('toggle',()=>{if(commitments.open&&!requested){requested=true;void renderStockCustomerCommitments(commitments.querySelector('div')!,group.row.article);}});panel.append(commitments);cell.append(panel);
     const columns=STOCK_COLUMNS.filter(c=>!['ownQuantity','thirdQuantity'].includes(c.key));headers(table,columns);
     const markup=(from:number,to:number)=>group.details.slice(from,to).map(row=>'<tr>'+cells(row,columns)+'</tr>').join('');
     table.tBodies[0].innerHTML=markup(0,250);continueTableOnScroll({table,total:group.details.length,initial:Math.min(250,group.details.length),append:(from,to)=>table.tBodies[0].insertAdjacentHTML('beforeend',markup(from,to))});

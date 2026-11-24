@@ -12,5 +12,7 @@ window.addEventListener('resize',schedule,{passive:true});
 export function continueTableOnScroll(options:ScrollTable){cleanup();for(const old of controllers)if(old.table===options.table){old.observer.disconnect();controllers.delete(old);}
     const container=options.table.closest<HTMLElement>('.table-scroll')||options.table.parentElement!;container.scrollTop=0;
     const observer=new ResizeObserver(schedule),controller:Controller={...options,loaded:options.initial,container,observer};controllers.add(controller);observer.observe(container);options.progress?.(controller.loaded,controller.total);schedule();
+    (options.table as any)[Symbol.for('aypi.materializeTableRows')]=()=>{if(controller.loaded<controller.total){controller.append(controller.loaded,controller.total);controller.loaded=controller.total;controller.progress?.(controller.loaded,controller.total);}};
 }
+export function materializeTableRows(table:HTMLTableElement){(table as any)[Symbol.for('aypi.materializeTableRows')]?.();}
 export function appendTableHtml(table:HTMLTableElement,markup:string){const temporary=document.createElement('table');temporary.innerHTML=markup;const body=temporary.tBodies[0];if(body)table.tBodies[0].append(...Array.from(body.children));}

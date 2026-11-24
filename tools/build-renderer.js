@@ -78,7 +78,7 @@ async function buildRenderer() {
 
   if (!entryPoints.length) return;
 
-  await esbuild.build({
+  const options = {
     entryPoints,
     outbase: rendererRoot,
     outdir: distDir,
@@ -119,7 +119,12 @@ async function buildRenderer() {
       "nodemailer",
       "otplib",
     ],
-  });
+  };
+  // The common filter bootstrap runs alongside each module's renderer.
+  // Keep its bundled helpers private instead of overwriting their globals.
+  const filterBootstrap = entryPoints.filter(file => path.basename(file) === 'analysis-filter-bootstrap.ts');
+  await esbuild.build({...options, entryPoints: entryPoints.filter(file => !filterBootstrap.includes(file))});
+  if (filterBootstrap.length) await esbuild.build({...options, entryPoints: filterBootstrap, format: 'iife'});
 }
 
 buildRenderer().catch((err) => {

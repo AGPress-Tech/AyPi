@@ -1,4 +1,4 @@
-import {validateStockRequest} from './stock-analysis';
+import {validateStockRequest,stockCustomerCommitmentsQuery} from './stock-analysis';
 import { randomBytes, timingSafeEqual, createHash } from "crypto";
 import { gzip } from "zlib";
 import { promisify } from "util";
@@ -17,6 +17,13 @@ const compress=promisify(gzip);
 const digest=(value:string)=>createHash("sha256").update(value).digest();
 
 export function registerAnalyticsRoutes(router:Router,service=analyticsService) {
+    router.register('POST','/api/erp/stock-customer-commitments',async(req,res)=>{
+        let input;
+        try{const value=await readJsonBody(req);stockCustomerCommitmentsQuery(value);input=value;}catch(error){sendJson(res,400,{error:(error as Error).message});return;}
+        res.setHeader('Cache-Control','no-store');
+        try{sendJson(res,200,await service.stockCustomerCommitments(input));}
+        catch(error){const message=(error as Error).message;sendJson(res,503,{error:message.startsWith('Oltre 100.000')?message:'Lettura impegni clienti non riuscita. Verificare il backend e riprovare.'});}
+    });
     router.register('POST','/api/erp/stock-analysis',async(req,res)=>{
         let input;
         try{input=validateStockRequest(await readJsonBody(req));}catch(error){sendJson(res,400,{error:(error as Error).message});return;}

@@ -30,8 +30,9 @@ app.whenReady().then(async()=>{
   assert.equal(await run("document.querySelectorAll('#kpis .kpi').length"),6);
   assert.equal(await run("document.querySelector('#kpis').textContent.includes('U.M. assente')"),false);
   assert.equal(await run("document.querySelector('#sourceFooter')?.offsetHeight||0"),0);
-  const layout=await run("({filters:document.querySelector('#filters').offsetHeight,kpis:document.querySelector('#kpis').offsetHeight,contentTop:document.querySelector('#content').getBoundingClientRect().top})");
-  assert(layout.filters<75&&layout.kpis<80&&layout.contentTop<320,JSON.stringify(layout));
+  await wait("document.querySelector('#filters').classList.contains('aypi-filter-panel')");
+  const layout=await run("(()=>{const f=document.querySelector('#filters').getBoundingClientRect(),c=document.querySelector('#content').getBoundingClientRect();return {width:f.width,right:f.right,left:c.left,bottom:f.bottom,viewport:innerHeight,kpis:document.querySelector('#kpis').offsetHeight,contentTop:c.top}})()");
+  assert(layout.width<=264&&layout.right<=layout.left&&layout.bottom<=layout.viewport&&layout.kpis<80&&layout.contentTop<320,JSON.stringify(layout));
   const dimensions=await run("Array.from(document.querySelectorAll('.customer-chart-grid canvas')).map(c=>({w:c.width,h:c.height}))");
   assert(dimensions.every(c=>c.w>200&&c.h>90),JSON.stringify(dimensions));
   assert.equal(await run("document.querySelectorAll('.chart-panel [data-edit-chart]').length"),0);

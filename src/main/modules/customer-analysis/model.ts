@@ -31,7 +31,7 @@ const flag=(v:unknown)=>v==null?null:v===true||v===1||v==='1';
 const text=(v:unknown)=>v==null?'':String(v).trim();
 export function normalizeCustomerRows(input:unknown):CustomerRow[]{
     if(!Array.isArray(input)||input.length>100000)throw Error('Risposta del gestionale non valida o troppo estesa.');
-    return input.map(v=>{
+    return input.filter(v=>v?.kind!=='order'||!text(v.article).startsWith('*')).map(v=>{
         if(!v||!['order','offer'].includes(v.kind)||v.documentId==null)throw Error('Documento del gestionale non valido.');
         const result:any={kind:v.kind};
         for(const k of ['documentId','documentNo','customerCode','customerName','article','description','unit','currency'])result[k]=text(v[k]);

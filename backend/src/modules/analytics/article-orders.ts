@@ -74,7 +74,7 @@ export const ARTICLE_ORDER_SOURCE = `SELECT d.Item AS article,d.Description AS d
  FROM dbo.MA_SaleOrdDetails d JOIN dbo.MA_SaleOrd h ON h.SaleOrdId=d.SaleOrdId
  LEFT JOIN dbo.MA_CustSupp c ON c.CustSupp=h.Customer AND c.CustSuppType=h.CustSuppType
  LEFT JOIN dbo.MA_ItemsGoodsData g ON g.Item=d.Item
- WHERE NULLIF(LTRIM(RTRIM(d.Item)),'') IS NOT NULL`;
+ WHERE NULLIF(LTRIM(RTRIM(d.Item)),'') IS NOT NULL AND LTRIM(d.Item) NOT LIKE '*%'`;
 export function buildArticleOrderQuery(input:unknown){
     const filters=validateArticleOrderFilters(input);
     return buildArticleDocumentQuery(filters,{

@@ -9,9 +9,23 @@ export function validateStockPeriods(value:any):StockPeriod[]{
 export function stockPeriodKey(row:StockRow){return String(row.fiscalYear??'')+':'+String(row.fiscalPeriod??'');}
 export function stockVisibleColumns(rows:StockRow[],columns:string[],periods?:StockPeriod[]){return (periods?periods.length:new Set(rows.map(stockPeriodKey)).size)>1?['article','fiscalYear','fiscalPeriod',...columns.filter(k=>!['article','fiscalYear','fiscalPeriod'].includes(k))]:columns;}
 export type StockRow=Record<string,any>;
+export type StockCustomerQuantity={article:string;unit:string;year:number|null;period:number|null;customerCode:string;customerName:string;quantity:number|null};
+export function stockCustomerQuantities(rows:StockRow[]):StockCustomerQuantity[]{
+    const customers=new Map<string,StockCustomerQuantity>();
+    for(const row of rows){
+        if(row.subjectKind!=='Cliente')continue;
+        const key=JSON.stringify([row.article,row.unit,row.fiscalYear,row.fiscalPeriod,row.subjectCode,row.subjectName]);
+        let value=customers.get(key);
+        if(!value){value={article:row.article,unit:row.unit,year:row.fiscalYear,period:row.fiscalPeriod,customerCode:row.subjectCode,customerName:row.subjectName,quantity:0};customers.set(key,value);}
+        value.quantity=value.quantity===null||row.quantity===null?null:value.quantity+row.quantity;
+    }
+    return [...customers.values()].filter(value=>value.quantity!==0).sort((a,b)=>a.customerName.localeCompare(b.customerName,'it')||a.customerCode.localeCompare(b.customerCode,'it'));
+}
+export function stockCustomerQuantityText(rows:StockRow[]){return stockCustomerQuantities(rows).map(value=>`${value.customerName||'Cliente non risolto'}${value.customerCode?' ('+value.customerCode+')':''}: ${value.quantity===null?'non disponibile':String(value.quantity)} ${value.unit||'U.M. non indicata'}`).join('\n');}
 const col=(key:string,label:string,kind:'text'|'number'|'date'='text')=>({key,label,kind});
 export const STOCK_COLUMNS=[col('article','Articolo'),col('description','Descrizione'),col('unit','U.M.'),col('quantity','Giacenza','number'),col('ownQuantity','Di proprietà aziendale','number'),col('thirdQuantity','Di proprietà di terzi','number'),col('available','Disponibile netto impegni','number'),col('storage','Magazzino'),col('storageDescription','Descrizione magazzino'),col('ownership','Proprietà merce'),col('subjectName','Soggetto associato'),col('subjectCode','Codice soggetto'),col('subjectKind','Tipo soggetto'),col('location','Ubicazione predefinita'),col('initial','Quantità iniziale','number'),col('received','Carichi','number'),col('issued','Scarichi','number'),col('reservedSales','Impegnato vendite','number'),col('reservedProduction','Impegnato produzione','number'),col('orderedPurchase','Ordinato acquisti','number'),col('orderedProduction','Ordinato produzione','number'),col('projected','Disponibilità prevista','number'),col('minimum','Scorta minima','number'),col('maximum','Scorta massima','number'),col('picked','Prelevato','number'),col('allocated','Allocato','number'),col('warnings','Verifica dati'),col('fiscalYear','Esercizio','number'),col('fiscalPeriod','Periodo','number'),col('modified','Ultima modifica saldo','date')];
-export const DEFAULT_STOCK_COLUMNS=['article','description','unit','quantity','storage','ownership','subjectName','warnings'];
+STOCK_COLUMNS.splice(4,0,col('customerQuantities','Clienti · quantità associata'),col('customerCommitments','Clienti · residuo ordini attuale'));
+export const DEFAULT_STOCK_COLUMNS=['article','description','unit','quantity','customerQuantities','customerCommitments','storage','ownership','subjectName','warnings'];
 export type StockSearch={article:string;exactArticle:string;description:string;unit:string;subject:string;subjectCode:string;subjectKind:string;storages:string[];ownership:'all'|'own'|'third'|'unknown';scope:'relevant'|'all'|'negative'|'shortage'|'minimum';sort:SortCriterion[]};
 export const emptyStockSearch=():StockSearch=>({article:'',exactArticle:'',description:'',unit:'',subject:'',subjectCode:'',subjectKind:'',storages:[],ownership:'all',scope:'relevant',sort:[{key:'article',direction:'asc'}]});
 export function validateStockSearch(value:any):StockSearch{
@@ -47,6 +61,9 @@ export function normalizeStock(rows:StockRow[]):StockRow[]{return rows.map((sour
     if(['Cliente','Fornitore'].includes(row.subjectKind)&&!row.subjectName)warnings.push('Soggetto non risolto');
     if(flag(source.articleDisabled))warnings.push('Articolo disabilitato');
     if(flag(source.storageDisabled))warnings.push('Magazzino disabilitato');
+    row.customerQuantities=stockCustomerQuantityText([row]);row.customerBreakdown=stockCustomerQuantities([row]);
+    row.currentCustomerOrders=Array.isArray(source.currentCustomerOrders)?source.currentCustomerOrders:[];
+    row.customerCommitments=row.currentCustomerOrders.map((value:any)=>`${value.customerName||value.customerCode||'Cliente non risolto'}: ${value.residual==null?'non disponibile':String(value.residual)} ${value.unit||'U.M. non indicata'}${value.missingQuantities?' (parziale)':''}`).join('\n');
     row.warnings=warnings.join('; ');row.key=JSON.stringify([row.article,row.unit,row.storage,source.subjectType,row.subjectCode,row.fiscalYear,row.fiscalPeriod,index]);
     return row;
 });}
@@ -68,6 +85,9 @@ export function groupStock(rows:StockRow[],sort:SortCriterion[]=[]):StockGroup[]
             group.row[c.key]=c.kind==='number'?(['fiscalYear','fiscalPeriod','minimum','maximum'].includes(c.key)?(distinct.length===1&&!values.includes(null)?distinct[0]:null):plus(...values)):c.key==='modified'?values.filter(Boolean).sort().pop()??null:distinct.join(' · ');
         }
         group.row.warnings=[...new Set(group.details.flatMap(r=>String(r.warnings).split('; ').filter(Boolean)))].join('; ');
+        group.row.customerQuantities=stockCustomerQuantityText(group.details);group.row.customerBreakdown=stockCustomerQuantities(group.details);
+        group.row.currentCustomerOrders=group.details[0]?.currentCustomerOrders||[];
+        group.row.customerCommitments=group.details[0]?.customerCommitments||'';
         // Min/max are per location; a sum would misrepresent the reorder threshold.
     }
     return sortByCriteria([...groups.values()],sort,(g,k)=>g.row[k]);
@@ -82,5 +102,5 @@ export function stockTotals(rows:StockRow[],key='quantity'){
     return [...units.values()].filter(t=>t.unit!=='U.M. non indicata'||t.value!==0||t.partial).sort((a,b)=>(b.year??0)-(a.year??0)||(b.period??0)-(a.period??0)||a.unit.localeCompare(b.unit));
 }
 export function validateStockColumns(value:any):string[]{if(!Array.isArray(value)||!value.length||value.length>STOCK_COLUMNS.length||value.some(k=>!STOCK_COLUMNS.some(c=>c.key===k)))throw Error('Colonne non valide.');return [...new Set(['article',...value])] as string[];}
-export type StockPreferences={version:1;columns:string[];presets:{name:string;search:StockSearch;columns:string[]}[]};
-export function validateStockPreferences(value:any):StockPreferences{if(value?.version!==1||!Array.isArray(value.presets)||value.presets.length>10)throw Error('Preferenze non valide.');const names=new Set<string>();return {version:1,columns:validateStockColumns(value.columns),presets:value.presets.map((p:any)=>{if(typeof p?.name!=='string'||!p.name.trim()||p.name.length>60||names.has(p.name.trim()))throw Error('Nome preset non valido o duplicato.');names.add(p.name.trim());return {name:p.name.trim(),search:validateStockSearch(p.search),columns:validateStockColumns(p.columns)};})};}
+export type StockPreferences={version:1;customerBreakdownVersion?:1;columns:string[];presets:{name:string;search:StockSearch;columns:string[]}[]};
+export function validateStockPreferences(value:any):StockPreferences{if(value?.version!==1||!Array.isArray(value.presets)||value.presets.length>10)throw Error('Preferenze non valide.');const names=new Set<string>();const columns=(input:any)=>{const clean=validateStockColumns(input);return value.customerBreakdownVersion===1?clean:validateStockColumns([...clean,'customerQuantities','customerCommitments']);};return {version:1,customerBreakdownVersion:1,columns:columns(value.columns),presets:value.presets.map((p:any)=>{if(typeof p?.name!=='string'||!p.name.trim()||p.name.length>60||names.has(p.name.trim()))throw Error('Nome preset non valido o duplicato.');names.add(p.name.trim());return {name:p.name.trim(),search:validateStockSearch(p.search),columns:columns(p.columns)};})};}

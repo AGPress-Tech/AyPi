@@ -4,7 +4,7 @@ import path from 'path';
 import * as XLSX from 'xlsx';
 import {requestAypiBackend} from '../file-manager/backend-client';
 import {registerAnalysisTarget} from '../analysis-navigation';
-import {STOCK_COLUMNS,DEFAULT_STOCK_COLUMNS,normalizeStock,filterStock,groupStock,stockTotals,StockRow,validateStockSearch,validateStockColumns,validateStockPreferences,validateStockPeriods,StockPeriod,stockVisibleColumns} from './model';
+import {STOCK_COLUMNS,DEFAULT_STOCK_COLUMNS,normalizeStock,filterStock,groupStock,stockTotals,stockCustomerQuantities,StockRow,validateStockSearch,validateStockColumns,validateStockPreferences,validateStockPeriods,StockPeriod,stockVisibleColumns} from './model';
 import {excelDateCell,excelNumberFormat} from '../analysis-excel';
 export function registerStockAnalysisIpc(mainWindow:BrowserWindow,icon:()=>string){
     let window:BrowserWindow|null=null,rows:StockRow[]|null=null,queriedAt='',selectedPeriods:StockPeriod[]=[],reading:Promise<any>|null=null,exporting=false,write=Promise.resolve();
@@ -48,13 +48,23 @@ export function registerStockAnalysisIpc(mainWindow:BrowserWindow,icon:()=>strin
                     datasets.push(result);
                 }
             }
-            const merged=datasets.flatMap(d=>d.rows),chosen=datasets.filter(d=>d.selected?.year).map(d=>d.selected),clean=chosen.length?validateStockPeriods(chosen):[];
+            const clients=new Map<string,any>();for(const dataset of datasets)for(const row of dataset.customerCommitments||[])clients.set(JSON.stringify([row.article,row.customerCode,row.unit]),row);
+            const customerCommitments=[...clients.values()];
+            const clientArticles=new Map<string,any[]>();for(const value of customerCommitments)clientArticles.set(value.article,[...(clientArticles.get(value.article)||[]),value]);
+            const merged=datasets.flatMap(d=>d.rows).map(row=>({...row,currentCustomerOrders:clientArticles.get(row.article)||[]})),chosen=datasets.filter(d=>d.selected?.year).map(d=>d.selected),clean=chosen.length?validateStockPeriods(chosen):[];
             const at=datasets.map(d=>d.queriedAt).filter(Boolean).sort().pop()||new Date().toISOString();
             if(window===owner&&owner&&!owner.isDestroyed()){rows=normalizeStock(merged);queriedAt=at;selectedPeriods=clean;}
-            return {ok:true,rows:merged,periods:datasets[0]?.periods||[],selected:clean.length===1?clean[0]:null,selectedPeriods:clean,queriedAt:at};
+            return {ok:true,rows:merged,customerCommitments,commitmentsAvailable:datasets.every(dataset=>dataset.commitmentsAvailable),periods:datasets[0]?.periods||[],selected:clean.length===1?clean[0]:null,selectedPeriods:clean,queriedAt:at};
         })().finally(()=>{reading=null;});return reading;
     };
     ipcMain.handle('stock-analysis-load',async(e,input)=>{if(!owns(e))return error(Error('Finestra non autorizzata.'));try{return await read(input??{});}catch(e){return error(e);}});
+    ipcMain.handle('stock-analysis-customer-commitments',async(e,input)=>{
+        try{
+            if(!owns(e))throw Error('Finestra non autorizzata.');
+            if(!input||typeof input.article!=='string'||!input.article.trim()||input.article.length>128||Object.keys(input).some(key=>key!=='article'))throw Error('Articolo non valido.');
+            return {ok:true,...await requestAypiBackend('/api/erp/stock-customer-commitments',{method:'POST',body:{article:input.article.trim()}})};
+        }catch(e){return error(e);}
+    });
     ipcMain.on('stock-analysis-close',e=>{if(owns(e))window?.close();});
     const file=()=>path.join(app.getPath('userData'),'stock-analysis.settings.json');
     const preferences=async()=>fs.existsSync(file())?validateStockPreferences(JSON.parse(await fs.promises.readFile(file(),'utf8'))):{version:1,columns:DEFAULT_STOCK_COLUMNS,presets:[]};
@@ -73,8 +83,12 @@ export function registerStockAnalysisIpc(mainWindow:BrowserWindow,icon:()=>strin
                 cols.forEach((c,i)=>{if(c.kind==='number')for(let r=1;r<=data.length;r++){const cell=sheet[XLSX.utils.encode_cell({r,c:i})];if(cell?.t==='n')cell.z=['fiscalYear','fiscalPeriod'].includes(c.key)?'0':excelNumberFormat(cell.v,0,6);}});XLSX.utils.book_append_sheet(book,sheet,name);};
             add('Giacenze per articolo',groups.map(g=>g.row),columns);
             add('Dettaglio magazzini',filtered,STOCK_COLUMNS.map(c=>c.key));
+            const customerRows=stockCustomerQuantities(filtered);
+            XLSX.utils.book_append_sheet(book,XLSX.utils.aoa_to_sheet([['Articolo','U.M.','Esercizio','Periodo','Codice cliente','Cliente','Quantità associata'],...customerRows.map(row=>[row.article,row.unit,row.year,row.period,row.customerCode,row.customerName,row.quantity])]),'Clienti per articolo');
+            const currentCustomers=new Map<string,any>();for(const row of filtered)for(const value of row.currentCustomerOrders||[])currentCustomers.set(JSON.stringify([value.article,value.customerCode,value.unit]),value);
+            XLSX.utils.book_append_sheet(book,XLSX.utils.aoa_to_sheet([['Articolo','Cliente','Codice cliente','U.M.','Residuo ordini attuale','Allocato attuale','Prelevato attuale','Ordini','Quantità mancanti'],...[...currentCustomers.values()].map(row=>[row.article,row.customerName,row.customerCode,row.unit,row.residual,row.allocated,row.picked,row.orders,row.missingQuantities])]),'Impegni clienti attuali');
             XLSX.utils.book_append_sheet(book,XLSX.utils.aoa_to_sheet([['Esercizio','Periodo','U.M.','Giacenza','Totale parziale'],...stockTotals(filtered).map(t=>[t.year,t.period,t.unit,t.value,t.partial?'Sì':'No'])]),'Totali per unità');
-            XLSX.utils.book_append_sheet(book,XLSX.utils.aoa_to_sheet([['Esercizi / periodi',selectedPeriods.map(p=>p.year+' / '+p.period).join(', ')],['Lettura dati',excelDateCell(queriedAt,'dd/mm/yyyy hh:mm:ss')],['Filtri',JSON.stringify(search)],['Giacenza','Quantità iniziale + carichi − scarichi. Saldi distinti per esercizio/periodo, senza somme fra periodi.'],['Proprietà','OwnedGoods del magazzino. Il soggetto associato è lo specificatore cliente/fornitore e non certifica da solo il proprietario legale.'],['Disponibile netto impegni','Giacenza − impegnato vendite − impegnato produzione. Non sottrae nuovamente prelevato/allocato.'],['Disponibilità prevista','Disponibile netto + ordinato acquisti + ordinato produzione. Non include date di consegna.'],['Ubicazione','Ubicazione predefinita del saldo; non una posizione fisica rilevata.'],['Soglie','Scorta minima e massima sono per posizione; nel riepilogo valori diversi non si sommano.'],['Valorizzazione','Non presente: i saldi quantità non certificano costo e valore di magazzino.']]),'Informazioni');
+            XLSX.utils.book_append_sheet(book,XLSX.utils.aoa_to_sheet([['Esercizi / periodi',selectedPeriods.map(p=>p.year+' / '+p.period).join(', ')],['Lettura dati',excelDateCell(queriedAt,'dd/mm/yyyy hh:mm:ss')],['Filtri',JSON.stringify(search)],['Giacenza','Quantità iniziale + carichi − scarichi. Saldi distinti per esercizio/periodo, senza somme fra periodi.'],['Proprietà','OwnedGoods del magazzino. Il soggetto associato è lo specificatore cliente/fornitore e non certifica da solo il proprietario legale.'],['Disponibile netto impegni','Giacenza − impegnato vendite − impegnato produzione. Non sottrae nuovamente prelevato/allocato.'],['Disponibilità prevista','Disponibile netto + ordinato acquisti + ordinato produzione. Non include date di consegna.'],['Ubicazione','Ubicazione predefinita del saldo; non una posizione fisica rilevata.'],['Soglie','Scorta minima e massima sono per posizione; nel riepilogo valori diversi non si sommano.'],['Clienti e quantità','Quantità associata: saldo con specificatore cliente nel periodo scelto. Residuo ordini: domanda attuale, separata da allocato e prelevato; non certifica assegnazione fisica o storica. Articoli con codice iniziale * esclusi dagli ordini.'],['Valorizzazione','Non presente: i saldi quantità non certificano costo e valore di magazzino.']]),'Informazioni');
             const save=await dialog.showSaveDialog(window!,{title:'Esporta giacenze',defaultPath:'Giacenze.xlsx',filters:[{name:'Excel',extensions:['xlsx']}]});if(save.canceled||!save.filePath)return {ok:true,canceled:true};
             await fs.promises.writeFile(save.filePath,XLSX.write(book,{type:'buffer',bookType:'xlsx'}));return {ok:true,count:groups.length,positions:filtered.length};
         }catch(e){return error(e);}finally{exporting=false;}
