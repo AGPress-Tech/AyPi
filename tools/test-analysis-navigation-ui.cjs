@@ -32,6 +32,7 @@ app.whenReady().then(async()=>{
 
  await main.loadURL('about:blank');
  require('../dist-ts/modules/analysis-navigation').registerAnalysisNavigation(main,()=> '');
+ require('../dist-ts/modules/workstations').registerWorkstations(main,()=>false,{request:async()=>({version:1,revision:0,profiles:[{id:'default',name:'Standard',rules:{}}]})});
  require('../dist-ts/modules/article-orders/ipc').registerArticleOrdersIpc(main,()=> '');
  require('../dist-ts/modules/customer-analysis/ipc').registerCustomerAnalysisIpc(main,()=> '');
  require('../dist-ts/modules/turning-analysis/ipc').registerTurningAnalysisIpc(main,()=> '');

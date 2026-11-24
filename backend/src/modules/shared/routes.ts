@@ -1,4 +1,5 @@
 import type { Router } from "../../shared/http/router";
+import { registerWorkstationRoutes } from "./workstations";
 import { getRequestId, getRequestUser } from "../../shared/http/context";
 import { sendJson } from "../../shared/http/response";
 import { readJsonBody } from "../../shared/http/request";
@@ -131,6 +132,7 @@ const validateOtpSendPayload = createSchemaValidator<{
 });
 
 export function registerSharedRoutes(router: Router) {
+    registerWorkstationRoutes(router);
     router.register("GET", "/api/shared/admins", async (_req, res) => {
         sendJson(res, 200, { admins: getAdmins() });
     });

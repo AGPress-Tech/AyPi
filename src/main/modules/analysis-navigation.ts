@@ -3,6 +3,8 @@ import path from 'path';
 import {ANALYSIS_TARGETS,AnalysisTarget,AnalysisContext,validateAnalysisContext} from './analysis-navigation-model';
 import {requestAypiBackend} from './file-manager/backend-client';
 import {registerAnalysisUiPreferences} from './analysis-ui-preferences';
+import {canAccessStationEntry} from './workstations';
+import {stationCatalog} from './workstations-model';
 
 const modules=new Map<AnalysisTarget,{open:()=>Promise<BrowserWindow>;owns:(event:any)=>boolean;exists?:(context:AnalysisContext)=>Promise<boolean>}>();
 const additionalSources=new Set<(event:any)=>boolean>();
@@ -34,6 +36,8 @@ function observeContextWindow(contents:WebContents){
     contents.once('destroyed',()=>{ready.delete(id);pending.delete(id);observed.delete(id);});
 }
 async function navigateAnalysis(target:AnalysisTarget,context:AnalysisContext){
+    const entry=stationCatalog.find(entry=>entry.target===target);
+    if(entry&&!canAccessStationEntry(entry.id))throw Error('Modulo non accessibile su questa postazione.');
     const module=modules.get(target);if(!module)throw Error('Modulo non disponibile.');
     const win=await module.open();
     if(Object.keys(context).length&&!win.isDestroyed()){
@@ -45,6 +49,8 @@ async function navigateAnalysis(target:AnalysisTarget,context:AnalysisContext){
 export async function relatedAnalysisMenuItems(source:string,payload:unknown,sender:WebContents):Promise<Electron.MenuItemConstructorOptions[]>{
     const context=validateAnalysisContext(payload),items:Electron.MenuItemConstructorOptions[]=[],candidates:{target:AnalysisTarget;label:string;context:AnalysisContext}[]=[];
     const add=(target:AnalysisTarget,label:string,value:AnalysisContext)=>{
+        const entry=stationCatalog.find(entry=>entry.target===target);
+        if(entry&&!canAccessStationEntry(entry.id))return;
         if(target===source)return;
         candidates.push({target,label,context:value});
     };

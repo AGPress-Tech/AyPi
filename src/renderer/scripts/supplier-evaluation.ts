@@ -760,8 +760,11 @@ function renderCharts() {
 let selectorIdentities: typeof identities | null = null;
 function renderAnalysisHeader() {
     const group = supplierGroup(analysisSupplierId);
-    for(const id of ['supplierAnalysisTitle','supplierAnalysisCodes']){
-        $(id).dataset.relatedSuppliers=JSON.stringify(supplierNavigationCodes(analysisSupplierId));$(id).dataset.relatedSupplierId=analysisSupplierId;
+    for (const id of ["supplierAnalysisTitle", "supplierAnalysisCodes"]) {
+        $(id).dataset.relatedSuppliers = JSON.stringify(
+            supplierNavigationCodes(analysisSupplierId),
+        );
+        $(id).dataset.relatedSupplierId = analysisSupplierId;
     }
     $("supplierAnalysisTitle").textContent =
         group?.name || "Fornitore non disponibile";
@@ -809,11 +812,21 @@ function visibleColumns() {
             all.slice(0, view === "records" ? 11 : 12).map((c) => c.key);
     return all.filter((c) => ids.includes(c.key));
 }
-function supplierNavigationCodes(id:string){
-    const group=supplierGroup(id),ids=group?.memberIds||[id];
-    return [...new Set<string>(snapshot.suppliers.filter(s=>ids.includes(s.id)&&!s.legacy&&s.code).map(s=>String(s.code)))];
+function supplierNavigationCodes(id: string) {
+    const group = supplierGroup(id),
+        ids = group?.memberIds || [id];
+    return [
+        ...new Set<string>(
+            snapshot.suppliers
+                .filter((s) => ids.includes(s.id) && !s.legacy && s.code)
+                .map((s) => String(s.code)),
+        ),
+    ];
 }
-function recordNavigationCodes(row:any){const s=supplier(row.supplierId);return s&&!s.legacy&&s.code?[String(s.code)]:[];}
+function recordNavigationCodes(row: any) {
+    const s = supplier(row.supplierId);
+    return s && !s.legacy && s.code ? [String(s.code)] : [];
+}
 function tableHtml(rows: any[], cols: Col[]) {
     return `<thead><tr>${cols.map((c) => `<th class="${c.type === "number" ? "numeric" : ""}">${esc(c.label)}</th>`).join("")}</tr></thead><tbody>${
         rows
@@ -834,7 +847,7 @@ function tableHtml(rows: any[], cols: Col[]) {
                                                     : 0,
                                             )
                                           : value || "—";
-                            return `<td data-column="${c.key}" ${["code","name"].includes(c.key)?`data-related-suppliers="${esc(JSON.stringify(view==='records'?recordNavigationCodes(r):supplierNavigationCodes(r.id)))}"`:""} class="${c.type === "number" ? "numeric" : ""} ${c.key === "causes" ? "supplier-cause-list" : ""}" title="${esc(display)}">${(view === "records" && c.key === "date") || (view !== "records" && c.key === "name") ? `<button class="supplier-link" data-open-row="${esc(r.id)}">${esc(display)}</button>` : esc(display)}</td>`;
+                            return `<td data-column="${c.key}" ${["code", "name"].includes(c.key) ? `data-related-suppliers="${esc(JSON.stringify(view === "records" ? recordNavigationCodes(r) : supplierNavigationCodes(r.id)))}"` : ""} class="${c.type === "number" ? "numeric" : ""} ${c.key === "causes" ? "supplier-cause-list" : ""}" title="${esc(display)}">${(view === "records" && c.key === "date") || (view !== "records" && c.key === "name") ? `<button class="supplier-link" data-open-row="${esc(r.id)}">${esc(display)}</button>` : esc(display)}</td>`;
                         })
                         .join("")}</tr>`,
             )
@@ -1183,7 +1196,10 @@ function showSupplier(id: string) {
     const s = supplierGroup(id);
     if (!s) return;
     detailId = id;
-    $('detailTitle').dataset.relatedSuppliers=JSON.stringify(supplierNavigationCodes(id));$('detailTitle').dataset.relatedSupplierId=id;
+    $("detailTitle").dataset.relatedSuppliers = JSON.stringify(
+        supplierNavigationCodes(id),
+    );
+    $("detailTitle").dataset.relatedSupplierId = id;
     const records = selectedRows().filter((r) => r.analysisSupplierId === s.id),
         summary = supplierSummary([s], analysisRows(records), settings)[0];
     $("detailTitle").textContent = (s.code ? s.code + " · " : "") + s.name;
@@ -1745,11 +1761,21 @@ $("supplierTable").addEventListener("contextmenu", (event) => {
     );
     if (!row) return;
     event.preventDefault();
-    void ipc.invoke("supplier-evaluation-context", {
-        id: row.dataset.rowId,
-        kind: view === "records" ? "record" : "supplier",
-        relatedSuppliers:JSON.parse((event.target as HTMLElement).closest<HTMLElement>('[data-related-suppliers]')?.dataset.relatedSuppliers||'[]'),
-    }).then((result:any)=>{if(!result.ok)message(result.error||'Operazione non riuscita.',true);}).catch((error:Error)=>message(error.message,true));
+    void ipc
+        .invoke("supplier-evaluation-context", {
+            id: row.dataset.rowId,
+            kind: view === "records" ? "record" : "supplier",
+            relatedSuppliers: JSON.parse(
+                (event.target as HTMLElement).closest<HTMLElement>(
+                    "[data-related-suppliers]",
+                )?.dataset.relatedSuppliers || "[]",
+            ),
+        })
+        .then((result: any) => {
+            if (!result.ok)
+                message(result.error || "Operazione non riuscita.", true);
+        })
+        .catch((error: Error) => message(error.message, true));
 });
 ipc.on("supplier-evaluation-action", (_event: any, p: any) => {
     if (p.kind === "record") {
@@ -2034,7 +2060,21 @@ $("importInfo").onclick = (event) => {
         });
 };
 
-document.addEventListener('contextmenu',event=>{
-    const node=(event.target as HTMLElement).closest<HTMLElement>('[data-related-supplier-id]');if(!node)return;
-    event.preventDefault();void ipc.invoke('supplier-evaluation-context',{id:node.dataset.relatedSupplierId,kind:'supplier',relatedSuppliers:JSON.parse(node.dataset.relatedSuppliers||'[]')}).then((result:any)=>{if(!result.ok)message(result.error||'Operazione non riuscita.',true);}).catch((e:Error)=>message(e.message,true));
+document.addEventListener("contextmenu", (event) => {
+    const node = (event.target as HTMLElement).closest<HTMLElement>(
+        "[data-related-supplier-id]",
+    );
+    if (!node) return;
+    event.preventDefault();
+    void ipc
+        .invoke("supplier-evaluation-context", {
+            id: node.dataset.relatedSupplierId,
+            kind: "supplier",
+            relatedSuppliers: JSON.parse(node.dataset.relatedSuppliers || "[]"),
+        })
+        .then((result: any) => {
+            if (!result.ok)
+                message(result.error || "Operazione non riuscita.", true);
+        })
+        .catch((e: Error) => message(e.message, true));
 });

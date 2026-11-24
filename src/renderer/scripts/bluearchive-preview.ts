@@ -1,3 +1,5 @@
+import { createHomePages, PageDefinition } from "../../main/modules/home-pages";
+import { setupWorkstations } from "./workstations";
 import { gestureForDialogue } from "../modules/assistant-3d-motion";
 import { mount3DAssistant, NOZOMI_ANIMATIONS } from "../modules/assistant-3d";
 import { installAddinFunction } from "../modules/utils";
@@ -14,283 +16,8 @@ const INTERFACE_THEME =
 const IS_AGPRESS_INTERFACE = INTERFACE_THEME === "agpress";
 const MODULE_THEME = IS_AGPRESS_INTERFACE ? "standard" : "bluearchive";
 
-type ActionItem = {
-    label: string;
-    description: string;
-    addressKey?: string;
-    channel?: string;
-    channelArgs?: unknown[];
-    invoke?: boolean;
-    requiresAdmin?: boolean;
-};
-
-type PageDefinition = {
-    title: string;
-    heading: string;
-    description: string;
-    code: string;
-    actions?: ActionItem[];
-    calculator?: boolean;
-};
-
 let managementAccess = false;
-const pages: Record<string, PageDefinition> = {
-    moduli: {
-        title: "Moduli",
-        heading: "Seleziona un modulo",
-        description: "Accedi agli strumenti e ai moduli aziendali di AyPi.",
-        code: "MDL",
-        actions: [
-            {
-                label: "Valutazione Fornitori",
-                description: "Gestione e valutazione fornitori AGPress",
-                addressKey: "moduli.openFornitori",
-            },
-            {
-                label: "DDT Fornitori",
-                description: "Controllo documenti di trasporto",
-                addressKey: "moduli.openDDT",
-            },
-            {
-                label: "Gestione Manutenzioni",
-                description: "Manutenzioni macchine e impianti",
-                addressKey: "moduli.openManutenzioni",
-            },
-            {
-                label: "Strumenti di Misura",
-                description: "Tarature e strumenti di controllo",
-                addressKey: "moduli.openTarature",
-            },
-            {
-                label: "Gestione Stampi",
-                description: "Informazioni e Gestione Digitale Stampi",
-                addressKey: "moduli.openModuloStampi",
-            },
-            {
-                label: "Gestione Morsetti",
-                description: "Gestione morsetti officina",
-                addressKey: "moduli.openMorsetti",
-            },
-            {
-                label: "Utensili e Attrezzature",
-                description: "Gestione Utensili e Attrezzature Torneria",
-                addressKey: "moduli.openUtensili",
-            },
-            {
-                label: "Ticket Support",
-                description: "Richieste di assistenza interna",
-                channel: "open-ticket-support-window",
-                channelArgs: [{ theme: MODULE_THEME }],
-            },
-        ],
-    },
-    programmi: {
-        title: "Programmi",
-        heading: "Seleziona un reparto",
-        description:
-            "Apri il programma di pianificazione del reparto desiderato.",
-        code: "PRG",
-        actions: [
-            {
-                label: "Ufficio Tecnico",
-                description: "Programmazione ufficio tecnico",
-                addressKey: "programmi.openTecnico",
-            },
-            {
-                label: "Officina Meccanica",
-                description: "Programmazione officina",
-                addressKey: "programmi.openOfficina",
-            },
-            {
-                label: "Stampaggio",
-                description: "Piano reparto stampaggio",
-                addressKey: "programmi.openStampaggio",
-            },
-            {
-                label: "Tranceria",
-                description: "Piano reparto tranceria",
-                addressKey: "programmi.openTranceria",
-            },
-            {
-                label: "Torneria",
-                description: "Piano reparto torneria",
-                addressKey: "programmi.openTorneria",
-            },
-            {
-                label: "Magazzino",
-                description: "Piano attività magazzino",
-                addressKey: "programmi.openMagazzino",
-            },
-            {
-                label: "Consegne",
-                description: "Programma settimanale consegne",
-                addressKey: "programmi.openConsegne",
-            },
-        ],
-    },
-    articoli: {
-        title: "Articoli",
-        heading: "Informazioni articoli",
-        description: "Trova rapidamente disegni, cicli e schede di produzione.",
-        code: "ART",
-        actions: [
-            {
-                label: "Tavole e Disegni",
-                description: "Disegni tecnici degli articoli",
-                addressKey: "infoarticoli.openTavole",
-            },
-            {
-                label: "Cicli di Lavorazione",
-                description: "Documenti e cicli produttivi",
-                addressKey: "infoarticoli.openCicli",
-            },
-            {
-                label: "Schede Montaggio Stampi",
-                description: "Istruzioni montaggio stampi",
-                addressKey: "infoarticoli.openMontaggioStampi",
-            },
-            {
-                label: "Schede Difetti di Produzione",
-                description: "Difetti e controlli qualità",
-                addressKey: "infoarticoli.openDifettiProduzione",
-            },
-            {
-                label: "Schede Attrezzaggio",
-                description: "Configurazioni di attrezzaggio",
-                channel: "open-attrezzaggio-window",
-            },
-            {
-                label: "Registrazioni Progettazione",
-                description: "Registrazioni stampi e progetti speciali",
-                channel: "open-registrazioni-progettazione-window",
-            },
-            {
-                label: "Inventario magazzino",
-                description: "Mappa e gestione dei cassoni",
-                channel: "open-inventario-magazzino-window",
-                channelArgs: [{ theme: MODULE_THEME }],
-            },
-        ],
-    },
-    produzioni: {
-        title: "Produzioni",
-        heading: "Seleziona una produzione",
-        description: "Consulta e aggiorna i registri dei reparti produttivi.",
-        code: "PRD",
-        actions: [
-            {
-                label: "Registrazione Stampaggio",
-                description: "Registro produzione stampaggio",
-                addressKey: "produzioni.openRegStampaggio",
-            },
-            {
-                label: "Registrazione Tranceria",
-                description: "Registro produzione tranceria",
-                addressKey: "produzioni.openRegTranceria",
-            },
-            {
-                label: "Registrazione Torneria",
-                description: "Registro produzione torneria",
-                addressKey: "produzioni.openRegTorneria",
-            },
-        ],
-    },
-    "mes-scada": {
-        title: "MES - SCADA",
-        heading:
-            "Supervisory Control and Data Acquisition - Manufacturing Execution System",
-        description: "Produzione, supervisione e impianti in AyPi FORGE.",
-        code: "FRG",
-    },
-    calcolatore: {
-        title: "Calcolatore",
-        heading: "Calcolatore parametri",
-        description: "Calcola numero di giri e avanzamento per le lavorazioni.",
-        code: "CAL",
-        calculator: true,
-    },
-    utilities: {
-        title: "Utilities",
-        heading: "Strumenti AyPi",
-        description:
-            "Una raccolta di strumenti rapidi per il lavoro quotidiano.",
-        code: "UTL",
-        actions: [
-            {
-                label: "Elenca File",
-                description: "Trascrizione nomi dei file",
-                channel: "open-file-list-window",
-                channelArgs: [{ theme: MODULE_THEME }],
-            },
-            {
-                label: "Batch Rinomina",
-                description: "Rinomina multipla controllata",
-                channel: "open-batch-rename-window",
-                channelArgs: [{ theme: MODULE_THEME }],
-            },
-            {
-                label: "Generatore QR",
-                description: "Crea codici QR personalizzati",
-                channel: "open-qr-generator-window",
-                channelArgs: [{ theme: MODULE_THEME }],
-            },
-            {
-                label: "Confronta Cartelle",
-                description: "Confronto contenuti directory",
-                channel: "open-compare-folders-window",
-                channelArgs: [{ theme: MODULE_THEME }],
-            },
-            {
-                label: "Gerarchia",
-                description: "Visualizzatore Directory Server Aziendale",
-                channel: "open-hierarchy-window",
-                channelArgs: [{ theme: MODULE_THEME }],
-            },
-            {
-                label: "Calendario Dipendenti",
-                description: "Ferie, permessi, mutue e straordinari",
-                channel: "open-ferie-permessi-window",
-                channelArgs: [{ theme: MODULE_THEME }],
-            },
-            {
-                label: "Gestione Acquisti",
-                description: "Richieste acquisti e interventi",
-                channel: "open-product-manager-window",
-                channelArgs: [{ theme: MODULE_THEME }],
-            },
-        ],
-    },
-};
-
-pages.analisi = {
-    title: "Analisi",
-    heading: "Analisi del gestionale",
-    description: "Ricerche, report e analisi dei dati aziendali.",
-    code: "ANL",
-    actions: [
-        {
-            label: "Controllo di gestione",
-            description:
-                "Dashboard economiche, confronti e obiettivi · Solo amministratori",
-            channel: "management-open",
-            invoke: true,
-            requiresAdmin: true,
-        },
-        {
-            label: "Analisi commerciali",
-            description: "Venduto per articolo, offerte e analisi per cliente",
-            channel: "commercial-analysis-open",
-            invoke: true,
-        },
-        {
-            label: "Analisi Torneria",
-            description:
-                "Produzioni, valorizzazioni, saturazione macchine e confronti pluriennali",
-            channel: "turning-analysis-open",
-            invoke: true,
-        },
-    ],
-};
+const pages = createHomePages(MODULE_THEME);
 const pageOrder = Object.keys(pages);
 const aura = document.getElementById("cursorAura") as HTMLElement | null;
 const clickLayer = document.getElementById("clickLayer") as HTMLElement | null;
@@ -1530,7 +1257,7 @@ function renderActions(page: PageDefinition) {
     pageContent.innerHTML = (page.actions || [])
         .map(
             (action, index) => `
-        <button class="module-card ${tones[index % tones.length]} ${action.requiresAdmin && !managementAccess ? "access-restricted" : ""}" ${action.requiresAdmin ? `data-admin-required="true" aria-disabled="${!managementAccess}"` : ""} data-action-index="${index}" data-label="${action.label}">
+        <button ${stations.access(action.addressKey || action.channel!) === "hidden" ? "hidden" : ""} ${stations.access(action.addressKey || action.channel!) !== "accessible" ? "disabled" : ""} class="module-card ${tones[index % tones.length]} ${action.requiresAdmin && !managementAccess ? "access-restricted" : ""}" ${action.requiresAdmin ? `data-admin-required="true" aria-disabled="${!managementAccess}"` : ""} data-action-index="${index}" data-label="${action.label}">
             <span class="card-code">${page.code}-${String(index + 1).padStart(2, "0")}</span>
             <span class="card-icon ${icons[index % icons.length]}"><i></i></span>
             <span class="card-title">${action.label}</span>
@@ -1547,6 +1274,7 @@ function renderActions(page: PageDefinition) {
                 Number(card.dataset.actionIndex)
             ];
             card.addEventListener("click", async () => {
+                if (stations.access(action.addressKey || action.channel!) !== "accessible") return;
                 if (action?.requiresAdmin && !managementAccess) {
                     const text =
                         "Il Controllo di gestione è riservato agli amministratori. Premi F2 per accedere come amministratore.";
@@ -1582,6 +1310,7 @@ function renderActions(page: PageDefinition) {
             });
             card.addEventListener("contextmenu", async (event) => {
                 event.preventDefault();
+                if (stations.access(action.addressKey || action.channel!) !== "accessible") return;
                 if (!action?.addressKey) return;
                 const ipcRenderer = require("electron").ipcRenderer;
                 if (!(await ipcRenderer.invoke("admin-is-enabled"))) {
@@ -1672,6 +1401,7 @@ function renderCalculator() {
 }
 
 function applyPage(pageKey: string) {
+    if (stations.access(`section:${pageKey}`) !== "accessible") return;
     const page = pages[pageKey];
     if (!page) return;
     currentPageKey = pageKey;
@@ -1697,6 +1427,11 @@ function applyPage(pageKey: string) {
     if (pageKey === "mes-scada") {
         pageContent!.className = "forge-landing-root";
         mountForgeLanding(pageContent!, MODULE_THEME);
+        const forgeButton = pageContent!.querySelector<HTMLButtonElement>("#open-forge");
+        if (forgeButton) {
+            forgeButton.hidden = stations.access("open-forge-window") === "hidden";
+            forgeButton.disabled = stations.access("open-forge-window") !== "accessible";
+        }
     } else if (page.calculator) renderCalculator();
     else renderActions(page);
 
@@ -1704,6 +1439,7 @@ function applyPage(pageKey: string) {
 }
 
 function renderPage(pageKey: string, animate = true) {
+    if (stations.access(`section:${pageKey}`) !== "accessible") return;
     if (!pages[pageKey]) return;
     const transitionTargets = Array.from(
         document.querySelectorAll<HTMLElement>(
@@ -1844,6 +1580,7 @@ function updateTimeTools() {
 }
 
 function openTimerPanel() {
+    if (stations.access("open-timer-window") !== "accessible") return;
     if (!timerBackdrop) return;
     timerBackdrop.setAttribute("aria-hidden", "false");
     footerClock?.setAttribute("aria-expanded", "true");
@@ -1956,6 +1693,33 @@ document.getElementById("menuWebsite")?.addEventListener("click", () => {
 });
 
 const managementIpc = require("electron").ipcRenderer;
+const stations = setupWorkstations(() => {
+    if (footerClock) {
+        footerClock.hidden = stations.access("open-timer-window") === "hidden";
+        (footerClock as HTMLButtonElement).disabled = stations.access("open-timer-window") !== "accessible";
+    }
+    document.querySelectorAll<HTMLButtonElement>(".nav-item[data-page]").forEach(button => {
+        const state = stations.access(`section:${button.dataset.page}`);
+        button.hidden = state === "hidden";
+        button.disabled = state !== "accessible";
+    });
+    const available = pageOrder.filter(key => stations.access(`section:${key}`) === "accessible");
+    const next = available.includes(currentPageKey) ? currentPageKey : available[0];
+    ++pageTransitionToken;
+    document.querySelectorAll(".page-leave, .page-enter").forEach(element => element.classList.remove("page-leave", "page-enter"));
+    if (next) applyPage(next);
+    else {
+        currentPageKey = "";
+        document.body.classList.remove("forge-landing-page");
+        heroTitle!.textContent = "Postazione.";
+        heroDescription!.textContent = "Nessuna sezione accessibile. Rivolgiti all’amministratore per configurare la postazione.";
+        sectionTitle!.textContent = "Nessun modulo disponibile";
+        pageContent!.innerHTML = "";
+        heroNumber!.textContent = "—";
+        pageNumber!.textContent = "—";
+        document.querySelectorAll(".nav-item.active").forEach(button => button.classList.remove("active"));
+    }
+});
 function updateManagementAccess(enabled: boolean) {
     managementAccess = enabled;
     document

@@ -41,6 +41,7 @@ import { registerFileNavigationIpc } from "./file-manager/file-navigation-ipc";
 import { registerMeasurementIpc } from "./measurement-instruments/ipc";
 import { registerMaintenanceIpc } from "./maintenance/ipc";
 import { registerAdminStateIpc } from "./file-manager/admin-state-ipc";
+import { registerWorkstations, canAccessStationEntry } from "./workstations";
 import { registerManagementIpc } from "./management/ipc";
 import { registerArticleOrdersIpc } from "./article-orders/ipc";
 import { registerTurningAnalysisIpc } from "./turning-analysis/ipc";
@@ -1270,6 +1271,7 @@ function openGitflowWindow(mainWindow, options?: { force?: boolean }) {
 }
 
 function openTimerWindow(mainWindow, options: { theme?: string } = {}) {
+    if (!canAccessStationEntry("open-timer-window")) return;
     const requestedTheme =
         options.theme === "bluearchive" ? "bluearchive" : "standard";
     if (isWindowAlive(timerWindow)) {
@@ -2550,6 +2552,7 @@ function setupFileManager(mainWindow) {
         onManagementDisabled: () => management.revoke(),
     });
     const management = registerManagementIpc(mainWindow, adminState.canAccessManagement, getInterfaceIconPath, {getCredential:adminState.getManagementCredential,getBackendUrl:resolveAypiBackendBaseUrl});
+    registerWorkstations(mainWindow, adminState.canAccessManagement, { getCredential: adminState.getManagementCredential });
     registerAnalysisNavigation(mainWindow,getInterfaceIconPath);
     registerArticleOrdersIpc(mainWindow,getInterfaceIconPath);
     registerTurningAnalysisIpc(mainWindow,getInterfaceIconPath);

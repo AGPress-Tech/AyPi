@@ -1,0 +1,35 @@
+.workstation-dialog { width: min(1100px, calc(100vw - 48px)); max-height: calc(100vh - 48px); padding: 20px; border: 1px solid var(--line); border-radius: 16px; background: var(--white, #fff); color: var(--ink, #17243d); box-shadow: var(--shadow); font: 14px "Segoe UI", sans-serif; }
+.workstation-dialog[open] { display: flex; flex-direction: column; gap: 12px; }
+.workstation-dialog::backdrop { background: #14213299; backdrop-filter: blur(4px); }
+.workstation-dialog [hidden] { display: none !important; }
+.workstation-dialog header, .workstation-dialog footer, .station-toolbar { display: flex; align-items: center; gap: 10px; }
+.workstation-dialog header { justify-content: space-between; flex: none; }
+.workstation-dialog h2, .workstation-dialog p { margin: 0; }
+.workstation-dialog h2 { margin-top: 5px; }
+.workstation-dialog button, .workstation-dialog input, .workstation-dialog select { padding: 8px 10px; border: 1px solid var(--line); border-radius: 7px; background: var(--white, #fff); color: inherit; font: inherit; min-height: 36px; }
+.workstation-dialog button { cursor: pointer; white-space: nowrap; }
+.workstation-dialog [data-new], .workstation-dialog [data-save], .workstation-dialog [data-select] { border-color: var(--blue); color: var(--blue); }
+.workstation-dialog [data-close][aria-label] { width: 36px; padding: 0; font-size: 22px; }
+.station-toolbar label { flex: 1; min-width: 160px; }
+.workstation-dialog label { display: flex; flex-direction: column; gap: 5px; }
+.station-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.station-help { color: var(--muted); font-size: 12px; line-height: 1.5; }
+.station-rules { overflow: auto; min-height: 100px; padding: 3px; border: 1px solid var(--line); border-radius: 8px; }
+.station-rules table { width: 100%; border-collapse: separate; border-spacing: 0; }
+.station-rules th { position: sticky; top: 0; z-index: 1; background: var(--pale, #f5f8fc); text-align: left; }
+.station-rules th, .station-rules td { padding: 7px 12px; border-right: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+.station-section td { background: var(--pale, #f5f8fc); font-weight: 700; }
+.station-module td:first-child { padding-left: 28px; }
+.station-rules select { width: 100%; min-width: 155px; }
+.station-state { display: inline-block; padding: 4px 8px; border-radius: 5px; font-size: 12px; background: #e7f5ec; color: #205d38; }
+.station-state.blocked { background: #fff1d8; color: #784b0e; }
+.station-state.hidden { background: #edf0f5; color: #48546a; }
+.workstation-dialog footer { position: static; height: auto; padding: 8px 0 0; color: inherit; background: transparent; font: inherit; letter-spacing: normal; flex: none; }
+.workstation-dialog [data-status] { flex: 1; font-size: 13px; }
+.workstation-dialog :focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
+.workstation-dialog button:disabled, .workstation-dialog select:disabled { opacity: .65; cursor: default; }
+.nav-item:disabled, .module-card:disabled { filter: grayscale(1); opacity: .45; cursor: not-allowed; transform: none !important; }
+.nav-item[hidden], .module-card[hidden] { display: none !important; }
+.forge-module:disabled { filter: grayscale(1); opacity: .45; cursor: not-allowed; }
+.forge-module[hidden] { display: none !important; }
+@media (max-width: 1060px) { .workstation-dialog { padding: 14px; gap: 9px; } .station-toolbar { gap: 6px; } .station-toolbar button { padding-inline: 8px; } }

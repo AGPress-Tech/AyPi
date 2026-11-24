@@ -1,5 +1,6 @@
 import { setupRobotConsole } from "./forge/robot-console";
 import { setupForgeSplash } from "./forge/splash";
+import { stationAccess } from "../../main/modules/workstations-model";
 const { ipcRenderer } = require("electron");
 const theme =
     new URLSearchParams(location.search).get("theme") === "bluearchive"
@@ -12,6 +13,16 @@ bootSplash.mark("interface");
 bootSplash.mark("theme");
 const robotConsole = setupRobotConsole();
 const element = (id: string) => document.getElementById(id)!;
+function applyStation(snapshot: any) {
+    for (const [id, entry] of Object.entries({ "forge-open-mes": "open-production-planner-window", "forge-open-forno": "open-forno-window", "forge-open-robots": "forge-robots" })) {
+        const state = stationAccess(snapshot.config, entry);
+        const button = element(id) as HTMLButtonElement;
+        button.hidden = state === "hidden";
+        button.disabled = state !== "accessible";
+    }
+}
+ipcRenderer.invoke("workstations-get").then(applyStation);
+ipcRenderer.on("workstations-changed", (_event: unknown, snapshot: any) => applyStation(snapshot));
 element("forge-edition").textContent =
     theme === "bluearchive" ? "BLUE ARCHIVE" : "AGPRESS";
 element("forge-future-editor").hidden = theme !== "bluearchive";

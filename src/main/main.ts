@@ -1,4 +1,5 @@
 import "./modules/stdio-errors";
+import { installStationLaunchGuards } from "./modules/workstations";
 import {
     app,
     BrowserWindow,
@@ -72,6 +73,7 @@ if (!gotLock) {
 }
 
 app.setPath("userData", path.join(app.getPath("appData"), "AyPiUserData"));
+installStationLaunchGuards();
 
 function getThemeSettingsPath() {
     return path.join(app.getPath("userData"), "interface-theme.json");
