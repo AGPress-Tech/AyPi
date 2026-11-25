@@ -1,3 +1,4 @@
+import { installRememberedLogins } from "../../modules/remembered-login";
 import { enhanceDetailTable } from "../../modules/analysis-detail-filters";
 const page = location.pathname.split(/[\\/]/).pop() || "module";
 const escape = (value: string) =>
@@ -223,75 +224,12 @@ function mountPanel(panel: HTMLElement, standalone = false) {
     for (const child of following) results.append(child);
     requestAnimationFrame(() => window.dispatchEvent(new Event("resize")));
 }
+// Filter adaptation is explicitly limited to Giacenze. Every other page keeps
+// its native controls, positions and presets, including MES and Pianificatore.
 function scan() {
-    const inventory = document.querySelector<HTMLElement>(
-        "#inventorySearchForm",
-    );
-    if (inventory && !inventory.classList.contains("aypi-filter-panel")) {
-        inventory.parentElement!.classList.add("aypi-inventory-filter-layout");
-        mountPanel(inventory, true);
-    }
-    const viewerFields = document.querySelector<HTMLElement>(
-            "#viewerSearchFilters",
-        ),
-        viewerSearch = document.querySelector<HTMLElement>(".viewer-search"),
-        viewer = document.querySelector<HTMLElement>(".viewer-layout");
-    if (
-        viewerFields &&
-        viewerSearch &&
-        viewer &&
-        !viewerFields.classList.contains("aypi-filter-panel")
-    ) {
-        viewerFields.hidden = false;
-        viewerFields.prepend(viewerSearch);
-        viewer.prepend(viewerFields);
-        viewer.classList.add("aypi-viewer-filter-layout");
-        mountPanel(viewerFields, true);
-        document
-            .querySelector<HTMLElement>("#viewerSearchFilterToggle")
-            ?.setAttribute("hidden", "");
-    }
-    const calendar = document.querySelector<HTMLElement>(
-            "#fp-calendar-filters",
-        ),
-        calendarSidebar =
-            document.querySelector<HTMLElement>(".fp-body>.fp-panel");
-    if (
-        calendar &&
-        calendarSidebar &&
-        !calendar.classList.contains("aypi-filter-panel")
-    ) {
-        calendarSidebar.prepend(calendar);
-        document.body.classList.add("aypi-calendar-filter-layout");
-        mountPanel(calendar, true);
-    }
-    const catalog = document.querySelector<HTMLElement>(".pm-catalog-filters"),
-        purchasingSidebar =
-            document.querySelector<HTMLElement>(".pm-body>.pm-panel");
-    if (
-        catalog &&
-        purchasingSidebar &&
-        !catalog.classList.contains("aypi-filter-panel")
-    ) {
-        purchasingSidebar.prepend(catalog);
-        document.body.classList.add("aypi-purchasing-filter-layout");
-        mountPanel(catalog, true);
-    }
-    for (const panel of document.querySelectorAll<HTMLElement>(
-        "main > .filter-panel,main > .filters,main > .filter-bar,#listView>.cycle-list-filters",
-    ))
+    if (page !== "stock-analysis.html") return;
+    for (const panel of document.querySelectorAll<HTMLElement>("main > .filter-panel"))
         mountPanel(panel);
-    for (const panel of document.querySelectorAll<HTMLElement>(
-        '.pm-cart-toolbar:has(input[id*="filter"],input[id*="search"]),.mes-machine-filters,.mes-orders-filters',
-    ))
-        mountPanel(panel);
-    const schedulerFilters = document.querySelector<HTMLElement>(
-        "#mes-page-scheduler .controls>.filters",
-    );
-    if (schedulerFilters) {
-        schedulerFilters.parentElement!.after(schedulerFilters);
-        mountPanel(schedulerFilters);
-    }
     // Detail views are independent of the manual filters of the source module.
     const selector =
         "dialog:not(#chartsDialog):not(#editDialog):not(#settingsDialog) table,[role=dialog] table,.document-links-row table,.linked-document table,.stock-detail table,.customer-document-lines table,.bom-expanded table,.expanded-detail table,.contract-detail table";
@@ -334,6 +272,7 @@ function schedule() {
 }
 if (document.readyState === "loading")
     document.addEventListener("DOMContentLoaded", () => {
+        installRememberedLogins();
         scan();
         new MutationObserver(schedule).observe(document.body, {
             childList: true,
@@ -341,6 +280,7 @@ if (document.readyState === "loading")
         });
     });
 else {
+    installRememberedLogins();
     scan();
     new MutationObserver(schedule).observe(document.body, {
         childList: true,

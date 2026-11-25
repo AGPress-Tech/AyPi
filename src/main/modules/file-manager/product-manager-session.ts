@@ -1,3 +1,4 @@
+import { registerLoginPreferencesIpc } from "../login-preferences";
 import type { IpcMain } from "electron";
 
 export type ProductManagerSession = Record<string, unknown> | null;
@@ -40,6 +41,7 @@ export function registerProductManagerSessionIpc(
     state: ProductManagerSessionState,
     onChange: (session: ProductManagerSession) => void,
 ) {
+    registerLoginPreferencesIpc();
     ipcMain.handle("pm-session-get", async () => state.get());
 
     ipcMain.handle("pm-session-set", async (_event, payload) => {

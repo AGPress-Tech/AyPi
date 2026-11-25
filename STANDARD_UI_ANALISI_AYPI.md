@@ -1,8 +1,23 @@
 # Standard UI dei moduli di analisi AyPi
 
+## Ambito delle modifiche ai filtri (25 novembre 2026)
+
+**Regola attuale:** il bootstrap dei filtri si applica esclusivamente a `stock-analysis.html`. Tutti gli altri moduli, compresi MES, Pianificatore e le rispettive analisi, mantengono disposizione, controlli e preset nativi. Non usare un elenco di eccezioni: nessuna pagina diversa dalle Giacenze viene trasformata.
+
+Su richiesta dell'utente sono annullate le nuove modifiche trasversali ai filtri: esclusioni, filtri speciali E/O, nuovi preset e periodo iniziale di tre anni. Gli altri moduli conservano le condizioni, i preset e i periodi precedenti. L'unico adattamento mantenuto riguarda **Giacenze**, con sezioni per campo come Offerte, alternative, condizioni speciali, inclusioni/esclusioni e preset. I relativi helper condivisi sono usati soltanto dalle Giacenze.
+
+Calendario operativo, Gestione acquisti (catalogo, liste e interventi) e Ticket Support (dipendente e admin) mantengono i propri filtri nativi, senza pannelli laterali o preset iniettati dal bootstrap delle analisi. Analisi calendario resta distinta dal Calendario operativo.
+
+Anche Gestione manutenzioni, Strumenti e tarature e Utensili e attrezzature conservano la disposizione nativa: il bootstrap non sposta i campi o i preset esistenti nel pannello laterale e non aggiunge filtri ai dettagli. La memoria dell'ultimo operatore rimane attiva indipendentemente dall'adattamento dei filtri.
+
+I login ricordano sul PC **l'ultimo accesso riuscito**, con nome e reparto, per riproporre la selezione alle aperture successive e negli altri moduli compatibili. La memoria locale è `login-preferences.json` nella cartella dati utente dell'applicazione, distinta dalla sessione; admin e dipendenti mantengono identità distinte. Vengono conservati soltanto nome e reparto, mai password, token o autorizzazioni. Il bootstrap condiviso attende le opzioni asincrone, ripristina reparto e dipendente soltanto se presenti negli elenchi attuali e rispetta una scelta manuale. Non avvia il login. Un accesso fallito o una semplice selezione non aggiornano la memoria. Copertura: Manutenzioni, Strumenti/Tarature, Fornitori, Utensili, login dipendente/admin Purchasing e Ticket, Magazzino e login admin Calendario; le verifiche e le autorizzazioni esistenti restano quelle dei rispettivi moduli. I moduli senza selezione di identità, come gli sblocchi con sola password, non hanno un operatore da preselezionare.
+
+Riferimenti memoria login: `main/modules/login-preferences.ts`, `renderer/modules/remembered-login.ts`. La sospensione dei backup automatici e le correzioni del backend restano indipendenti dai filtri.
+
+
 ## Filtri comuni e dettagli commerciali (24 novembre 2026)
 
-Convenzione richiesta e implementata: i filtri principali usano il pannello a sinistra, con campi standard etichettati, condizioni aggiuntive e **Preset filtri** nella stessa posizione. Vale anche per i moduli operativi: Calendario dipendenti, catalogo acquisti, liste acquisti/interventi, ticket, pianificazione e ricerca magazzino. I preset nativi conservano il proprio salvataggio; dove mancavano, i preset di ricerca sono locali al PC e al modulo. Non salvare credenziali o assegnazioni operative nei preset. L'inizializzazione condivisa è `scripts/shared/analysis-filter-bootstrap.ts`, caricata da `utility-layout-bootstrap.js`, con stile `utilities/analysis-filters.css`. Non aggiungere barre di ricerca principali con disposizioni alternative.
+Convenzione richiesta e implementata: i filtri principali usano il pannello a sinistra, con campi standard etichettati, condizioni aggiuntive e **Preset filtri** nella stessa posizione. La successiva richiesta del 25 novembre esclude Calendario operativo, Gestione acquisti e Ticket Support da questa trasformazione; tali moduli mantengono la disposizione nativa. I preset nativi conservano il proprio salvataggio; dove mancavano, i preset di ricerca sono locali al PC e al modulo. Non salvare credenziali o assegnazioni operative nei preset. L'inizializzazione condivisa è `scripts/shared/analysis-filter-bootstrap.ts`, caricata da `utility-layout-bootstrap.js`, con stile `utilities/analysis-filters.css`. Non aggiungere barre di ricerca principali con disposizioni alternative.
 
 Ogni dettaglio tabellare aperto da una lista, un esploso o una finestra dispone di ricerca, condizioni per colonna (testo, numero e data), ordinamento e preset indipendenti dal contesto di origine. Riutilizzare `modules/analysis-detail-filters.ts`; il modello puro è `main/modules/analysis-detail-filters.ts`. La ricerca e l'ordinamento completano la selezione locale mediante `materializeTableRows`, senza perdere le righe già aperte. Le tabelle modificabili restano escluse dall'iniezione automatica per preservare i flussi di inserimento. I filtri del dettaglio sono sopra la tabella, all'interno della finestra, con spazio per i contorni di focus.
 

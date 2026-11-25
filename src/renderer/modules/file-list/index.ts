@@ -1,14 +1,14 @@
-require("../shared/dev-guards");
+require("../../scripts/shared/dev-guards");
 import { ipcRenderer } from "electron";
 import fs from "fs";
 import path from "path";
 import * as XLSX from "xlsx";
-import { initBlueArchivePointerEffects } from "../shared/bluearchive-pointer-effects";
-import { makeSplashSkippable } from "../shared/skippable-splash";
-import { createScriptedSplashMode } from "../shared/scripted-splash-mode";
-import { mapWithConcurrency } from "../shared/async-pool";
+import { initBlueArchivePointerEffects } from "../../scripts/shared/bluearchive-pointer-effects";
+import { makeSplashSkippable } from "../../scripts/shared/skippable-splash";
+import { createScriptedSplashMode } from "../../scripts/shared/scripted-splash-mode";
+import { mapWithConcurrency } from "../../scripts/shared/async-pool";
 
-const { showInfo, showWarning, showError } = require("../shared/dialogs");
+const { showInfo, showWarning, showError } = require("../../scripts/shared/dialogs");
 const IS_BLUE_ARCHIVE_FILE_LIST =
     new URLSearchParams(window.location.search).get("theme") === "bluearchive";
 const SPLASH_MODE = createScriptedSplashMode(["bluearchive-file-list"]);

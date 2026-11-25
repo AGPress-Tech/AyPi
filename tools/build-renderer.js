@@ -1,6 +1,7 @@
 const fs = require("fs");
 const path = require("path");
 const esbuild = require("esbuild");
+const { rendererModuleFolders } = require("./renderer-module-folders.cjs");
 
 const rootDir = path.resolve(__dirname, "..");
 const distDir = path.join(rootDir, "dist-ts");
@@ -13,6 +14,7 @@ const rendererRoots = [
   path.join(rendererRoot, "scripts"),
   path.join(rendererRoot, "templates"),
   path.join(rendererRoot, "Guida", "assets"),
+  ...rendererModuleFolders(rendererRoot),
 ];
 
 function isExcluded(filePath) {
@@ -64,6 +66,9 @@ async function buildRenderer() {
     const destPath = path.join(distDir, rel).replace(/\.ts$/i, ".js");
 
     if (isExcluded(filePath)) {
+      continue;
+    }
+    if (ext === ".md" && filePath.startsWith(path.join(rendererRoot, "modules") + path.sep)) {
       continue;
     }
 
@@ -120,11 +125,13 @@ async function buildRenderer() {
       "otplib",
     ],
   };
-  // The common filter bootstrap runs alongside each module's renderer.
-  // Keep its bundled helpers private instead of overwriting their globals.
-  const filterBootstrap = entryPoints.filter(file => path.basename(file) === 'analysis-filter-bootstrap.ts');
-  await esbuild.build({ ...options, entryPoints: entryPoints.filter(file => !filterBootstrap.includes(file)) });
-  if (filterBootstrap.length) await esbuild.build({ ...options, entryPoints: filterBootstrap, format: 'iife' });
+  // Page entry bundles must keep helpers private, including names such as crypto
+  // which already exist on window. Required submodules retain CommonJS output.
+  const moduleEntries = rendererModuleFolders(rendererRoot).map(folder => path.join(folder, "index.ts"));
+  const isolatedEntries = entryPoints.filter(file =>
+    path.basename(file) === "analysis-filter-bootstrap.ts" || moduleEntries.includes(file));
+  await esbuild.build({ ...options, entryPoints: entryPoints.filter(file => !isolatedEntries.includes(file)) });
+  if (isolatedEntries.length) await esbuild.build({ ...options, entryPoints: isolatedEntries, format: "iife" });
 }
 
 buildRenderer().catch((err) => {

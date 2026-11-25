@@ -1,10 +1,10 @@
 // @ts-nocheck
-import "../shared/dev-guards";
-import { pickFolder, withButtonLock } from "./shared/folder-picker";
-import { initBlueArchivePointerEffects } from "../shared/bluearchive-pointer-effects";
-import { makeSplashSkippable } from "../shared/skippable-splash";
-import { createScriptedSplashMode } from "../shared/scripted-splash-mode";
-import { mapWithConcurrency } from "../shared/async-pool";
+import "../../scripts/shared/dev-guards";
+import { pickFolder, withButtonLock } from "../../scripts/utilities/shared/folder-picker";
+import { initBlueArchivePointerEffects } from "../../scripts/shared/bluearchive-pointer-effects";
+import { makeSplashSkippable } from "../../scripts/shared/skippable-splash";
+import { createScriptedSplashMode } from "../../scripts/shared/scripted-splash-mode";
+import { mapWithConcurrency } from "../../scripts/shared/async-pool";
 const { ipcRenderer } = require("electron");
 const fs = require("fs");
 const path = require("path");

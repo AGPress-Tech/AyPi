@@ -1,4 +1,5 @@
 // @ts-nocheck
+import { rememberSuccessfulLogin } from "../../modules/remembered-login";
 require("../shared/dev-guards");
 import { ipcRenderer } from "electron";
 import fs from "fs";
@@ -1156,6 +1157,7 @@ const approvalUi = createApprovalModal({
     onAdminLogin: (admin) => {
         if (!admin) return;
         setAdminSession(admin);
+        void rememberSuccessfulLogin(admin.name, "", "admin");
         if (!applyStoredFilterStateForCurrentUser()) {
             applyFilterDefaultsFromAccessConfig();
         }

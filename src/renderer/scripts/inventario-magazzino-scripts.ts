@@ -1,4 +1,5 @@
 // @ts-nocheck
+import { rememberSuccessfulLogin } from "../modules/remembered-login";
 require("./shared/dev-guards");
 const {
     requestBackend,
@@ -365,6 +366,8 @@ function applyWarehouseSession(payload) {
 async function saveWarehouseSession(payload) {
     applyWarehouseSession(payload);
     await ipcRenderer.invoke("pm-session-set", warehouseSession);
+    if (payload.role === "employee") void rememberSuccessfulLogin(payload.employee, payload.department);
+    else if (payload.role === "admin") void rememberSuccessfulLogin(payload.adminName, "", "admin");
     await loadAnalysisColumnPreferences();
 }
 

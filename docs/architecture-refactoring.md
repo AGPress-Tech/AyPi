@@ -38,6 +38,33 @@ La façade non deve tornare ad acquisire logica di dominio.
 
 ### Renderer
 
+Aggiornamento del 24 novembre 2026: il riordino fisico procede per modulo.
+I moduli migrati raggruppano pagina HTML, entry point `index.ts` e stili specifici
+in `src/renderer/modules/<modulo>/`; stato, servizi, dominio e UI possono essere
+sottocartelle della stessa cartella. Il primo è `compare-folders`. Il nome della
+pagina e i canali IPC restano stabili; la build copia le risorse nel corrispondente
+`dist-ts/modules/<modulo>/` e il controller aggiorna il percorso di apertura.
+Gli entry point di pagina sono isolati dagli oggetti globali del browser.
+
+Durante la transizione gli altri moduli restano nei percorsi precedenti, e gli
+helper condivisi già esistenti non vengono spostati contemporaneamente. Le
+cartelle `renderer/modules` contenenti solo helper TS non sono trattate come
+pagine autonome. La migrazione fisica non comporta un cambiamento dei percorsi
+dei dati. Checklist del primo passaggio:
+`src/renderer/modules/compare-folders/VERIFICA.md`.
+
+Il primo passaggio è stato confermato funzionante dall'utente. Il secondo modulo
+raggruppato è `qr-generator`, con pagina, entry point e stili nella stessa cartella.
+Sono aggiornati entrambi i percorsi Electron, mantenendo riuso e cambio tema della
+finestra. Checklist: `src/renderer/modules/qr-generator/VERIFICA.md`.
+Le versioni Windows di prova dei due passaggi sono separate per non sovrascrivere
+la versione precedente eventualmente ancora aperta.
+
+Confermato anche il secondo passaggio, il terzo modulo raggruppato è `file-list`.
+Pagina, entry point e stili sono affiancati, con i soli aggiornamenti ai percorsi
+di import e apertura. Scansione e generazione Excel restano invariate.
+Checklist: `src/renderer/modules/file-list/VERIFICA.md`.
+
 Ogni utility mantiene un entry point piccolo che esegue solo il bootstrap. Il
 codice della feature vive nella cartella omonima ed è separato in:
 

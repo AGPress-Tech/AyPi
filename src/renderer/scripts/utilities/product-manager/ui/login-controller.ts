@@ -1,4 +1,5 @@
 // @ts-nocheck
+import { rememberSuccessfulLogin } from "../../../../modules/remembered-login";
 export function setupLogin(context) {
     const { document } = context;
     let adminFailCount = 0;
@@ -75,6 +76,7 @@ export function setupLogin(context) {
             department,
             employee,
         });
+        void rememberSuccessfulLogin(employee, department);
         context.saveSession();
         context.syncSessionUI();
         context.closeLoginModal();
@@ -123,6 +125,7 @@ export function setupLogin(context) {
                 department: "",
                 employee: "",
             });
+            void rememberSuccessfulLogin(verified.admin.name, "", "admin");
             context.saveSession();
             context.syncSessionUI();
             context.closeLoginModal();

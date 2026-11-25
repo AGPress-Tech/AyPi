@@ -1,3 +1,4 @@
+import { registerLoginPreferencesIpc } from "../login-preferences";
 import { app, BrowserWindow, ipcMain, dialog, shell, Menu } from "electron";
 import fs from "fs";
 import path from "path";
@@ -18,6 +19,7 @@ export function registerSupplierEvaluationIpc(
     main: BrowserWindow,
     icon: () => string,
 ) {
+    registerLoginPreferencesIpc();
     let window: BrowserWindow | null = null,
         actor = "",
         groups: Record<string, string[]> = {},

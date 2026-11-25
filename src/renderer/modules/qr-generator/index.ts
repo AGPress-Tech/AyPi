@@ -1,13 +1,13 @@
-require("../shared/dev-guards");
+require("../../scripts/shared/dev-guards");
 import { ipcRenderer } from "electron";
 import fs from "fs";
 import path from "path";
-import { initBlueArchivePointerEffects } from "../shared/bluearchive-pointer-effects";
-import { makeSplashSkippable } from "../shared/skippable-splash";
-import { createScriptedSplashMode } from "../shared/scripted-splash-mode";
+import { initBlueArchivePointerEffects } from "../../scripts/shared/bluearchive-pointer-effects";
+import { makeSplashSkippable } from "../../scripts/shared/skippable-splash";
+import { createScriptedSplashMode } from "../../scripts/shared/scripted-splash-mode";
 const QRCode = require("qrcode");
 const bwipjs = require("bwip-js");
-const { showInfo, showWarning, showError } = require("../shared/dialogs");
+const { showInfo, showWarning, showError } = require("../../scripts/shared/dialogs");
 
 let lastPngBuffer: Buffer | null = null;
 const IS_BLUE_ARCHIVE_QR =
@@ -184,6 +184,7 @@ window.addEventListener("DOMContentLoaded", () => {
 
         const outputPath = await ipcRenderer.invoke("select-output-file", {
             defaultName,
+            filters: [{ name: "Immagine PNG", extensions: ["png"] }],
         });
 
         if (!outputPath) {

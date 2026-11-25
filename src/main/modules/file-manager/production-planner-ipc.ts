@@ -171,6 +171,9 @@ export function registerProductionPlannerIpc(
             if (payload?.[key]) params.set(key, String(payload[key]));
         for (const id of payload?.machineIds || [])
             params.append("machineId", String(id));
+        for (const key of payload?.exclude || []) if (["machineIds", "department", "article", "order", "operator"].includes(key)) params.append("exclude", key);
+        if (payload?.special?.length) params.set("special", JSON.stringify(payload.special));
+        if (params.toString().length > 12000) throw Error("Filtro speciale troppo lungo: riduci il numero o la lunghezza dei valori.");
         return mesRequest(`/api/mes/analysis?${params}`);
     });
     ipcMain.handle("mes-manual-declare", (_event, payload) =>

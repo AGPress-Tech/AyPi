@@ -1,3 +1,4 @@
+import { rememberSuccessfulLogin } from "../modules/remembered-login";
 import {
     calibrationSystemForm,
     systemPointRow,
@@ -2179,6 +2180,7 @@ $("loginForm").onsubmit = (event) => {
     event.preventDefault();
     void work(async () => {
         try {
+            const successfulLoginDepartment = $<HTMLSelectElement>("loginDepartment").value;
             const r = await ipc.invoke(
                 "measurement-login",
                 $<HTMLSelectElement>("loginEmployee").value,
@@ -2186,6 +2188,7 @@ $("loginForm").onsubmit = (event) => {
             if (!r.ok) throw Error(r.error);
             snapshot = r;
             actor = r.actor;
+        void rememberSuccessfulLogin(actor, successfulLoginDepartment);
             preferences = (await api("preferences-get")).preferences || {
                 workspace: emptyWorkspace(),
                 analysisWorkspace: emptyWorkspace(),

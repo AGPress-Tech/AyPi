@@ -386,15 +386,8 @@ export async function verifyAdminPassword(
         if (admin.passwordHash) {
             const ok = await verifyPasswordHash(admin.passwordHash, password);
             if (ok) {
-                try {
-                    const nextHash = await hashPassword(password);
-                    if (nextHash && nextHash !== admin.passwordHash) {
-                        admin.passwordHash = nextHash;
-                        await saveAdminCredentials(admins);
-                    }
-                } catch {
-                    // ignore rehash failures
-                }
+                // A valid hash does not need a new salt or a database write on login.
+                // Keep credential migration confined to the legacy plaintext branch.
                 return admin;
             }
             continue;

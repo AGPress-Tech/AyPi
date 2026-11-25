@@ -22,6 +22,9 @@ export function openDatabase(
         const folder = `electron-v${process.versions.modules}-${process.platform}-${process.arch}`;
         const roots = [
             process.env.AYPI_FORNO_RESOURCES || "",
+            (process as any).resourcesPath
+                ? path.join((process as any).resourcesPath, "backend-resources", "forno")
+                : "",
             path.resolve(__dirname, "../../../resources/forno"),
             path.resolve(__dirname, "../../../backend/resources/forno"),
         ];

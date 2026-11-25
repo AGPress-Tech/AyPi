@@ -15,6 +15,10 @@ const AGPRESS_BACKUP_ROOT_DIR = path.join(
     "AyPi Backups",
 );
 
+// Temporarily suspended for this release. Keep explicit manual backups and
+// the safety copies required by restore operations available.
+export const AUTOMATIC_BACKUPS_ENABLED = false;
+
 export function getAgpressRootDir() {
     return AGPRESS_ROOT_DIR;
 }
@@ -39,6 +43,9 @@ function excludeSnapshotFile(name: string, _fullPath: string) {
     );
 }
 export function ensureAgpressDailyBackup(prefix = "auto", limit = 3) {
+    if (!AUTOMATIC_BACKUPS_ENABLED) {
+        return { skipped: true, reason: "automatic-backups-suspended" };
+    }
     return createDailyDirectoryBackup({
         sourceDir: AGPRESS_ROOT_DIR,
         backupRootDir: AGPRESS_BACKUP_ROOT_DIR,

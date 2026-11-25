@@ -13,7 +13,7 @@ function walk(folder) {
 
 const errors = new Set();
 let checked = 0;
-for (const folder of ["pages", "styles"]) {
+for (const folder of ["pages", "styles", "modules"]) {
   for (const file of walk(path.join(root, folder)).filter((file) =>
     /\.(html|css)$/.test(file),
   )) {

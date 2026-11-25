@@ -1,3 +1,4 @@
+import { registerLoginPreferencesIpc } from "./login-preferences";
 import { registerStockAnalysisIpc } from "./stock-analysis/ipc";
 import { registerToolingIpc } from "./tooling/ipc";
 import { registerSupplierEvaluationIpc } from "./supplier-evaluation/ipc";
@@ -942,13 +943,7 @@ function openFileListWindow(
         if (fileListWindowTheme !== requestedTheme) {
             fileListWindowTheme = requestedTheme;
             fileListWindow.loadFile(
-                path.join(
-                    __dirname,
-                    "..",
-                    "pages",
-                    "utilities",
-                    "file-list.html",
-                ),
+                path.join(__dirname, "file-list", "file-list.html"),
                 {
                     query: {
                         theme: fileListWindowTheme,
@@ -976,7 +971,7 @@ function openFileListWindow(
         icon: APP_ICON_PATH,
     });
     fileListWindow.loadFile(
-        path.join(__dirname, "..", "pages", "utilities", "file-list.html"),
+        path.join(__dirname, "file-list", "file-list.html"),
         {
             query: {
                 theme: fileListWindowTheme,
@@ -1074,13 +1069,7 @@ function openQrGeneratorWindow(
         if (qrGeneratorWindowTheme !== requestedTheme) {
             qrGeneratorWindowTheme = requestedTheme;
             qrGeneratorWindow.loadFile(
-                path.join(
-                    __dirname,
-                    "..",
-                    "pages",
-                    "utilities",
-                    "qr-generator.html",
-                ),
+                path.join(__dirname, "qr-generator", "qr-generator.html"),
                 {
                     query: {
                         theme: qrGeneratorWindowTheme,
@@ -1107,7 +1096,7 @@ function openQrGeneratorWindow(
     });
 
     qrGeneratorWindow.loadFile(
-        path.join(__dirname, "..", "pages", "utilities", "qr-generator.html"),
+        path.join(__dirname, "qr-generator", "qr-generator.html"),
         {
             query: {
                 theme: qrGeneratorWindowTheme,
@@ -2475,13 +2464,7 @@ function openCompareFoldersWindow(
             sendPendingFolder,
         );
         compareFoldersWindow.loadFile(
-            path.join(
-                __dirname,
-                "..",
-                "pages",
-                "utilities",
-                "compare-folders.html",
-            ),
+            path.join(__dirname, "compare-folders", "compare-folders.html"),
             {
                 query: {
                     theme: compareFoldersWindowTheme,
@@ -2592,6 +2575,7 @@ function setupFileManager(mainWindow) {
     registerBomAnalysisIpc(mainWindow, getInterfaceIconPath);
     registerBarContractsIpc(mainWindow, getInterfaceIconPath);
     registerStockAnalysisIpc(mainWindow, getInterfaceIconPath);
+    registerLoginPreferencesIpc();
 
     registerFilesystemDialogIpc({
         ipcMain,

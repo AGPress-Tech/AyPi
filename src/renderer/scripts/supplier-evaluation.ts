@@ -1,3 +1,4 @@
+import { rememberSuccessfulLogin } from "../modules/remembered-login";
 import Chart from "chart.js/auto";
 import type { AnalysisContext } from "../../main/modules/analysis-navigation-model";
 import { analysisHtmlLegend } from "../modules/analysis-html-legend";
@@ -1437,12 +1438,14 @@ $("loginForm").onsubmit = async (event) => {
     event.preventDefault();
     $<HTMLButtonElement>("loginSubmit").disabled = true;
     try {
+        const successfulLoginDepartment = $<HTMLSelectElement>("loginDepartment").value;
         const result = await ipc.invoke(
             "supplier-evaluation-login",
             $<HTMLSelectElement>("loginEmployee").value,
         );
         if (!result.ok) throw Error(result.error);
         actor = result.actor;
+        void rememberSuccessfulLogin(actor, successfulLoginDepartment);
         snapshot = result;
         refreshIdentities();
         settings = result.settings;

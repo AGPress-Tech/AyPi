@@ -1,3 +1,4 @@
+import { rememberSuccessfulLogin } from "../modules/remembered-login";
 import type { AnalysisContext } from "../../main/modules/analysis-navigation-model";
 import {
     groupToolingLinks,
@@ -1373,6 +1374,7 @@ $("loginRetry").onclick = () => void employees();
 $("loginForm").onsubmit = (e) => {
     e.preventDefault();
     void work(async () => {
+        const successfulLoginDepartment = $<HTMLSelectElement>("loginDepartment").value;
         const r = await ipc.invoke(
             "tooling-login",
             $<HTMLSelectElement>("loginEmployee").value,
@@ -1382,6 +1384,7 @@ $("loginForm").onsubmit = (e) => {
             return;
         }
         actor = r.actor;
+        void rememberSuccessfulLogin(actor, successfulLoginDepartment);
         data = r;
         preferences = (await api("preferences-get")).preferences || {};
         preferences.filterPresets ||= [];

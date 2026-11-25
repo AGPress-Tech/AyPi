@@ -1,3 +1,7 @@
+import { SpecialFilter, validateSpecialFilters, specialFilterMatcher } from "../analysis-special-filters";
+import { FilterModes, filterWithModes, validateFilterModes } from "../analysis-filter-modes";
+export const STOCK_FILTER_GROUPS = { scope: ["scope"], storages: ["storages"], ownership: ["ownership"], subjectKind: ["subjectKind"], unit: ["unit"], article: ["article", "exactArticle"], description: ["description"], subject: ["subject"], subjectCode: ["subjectCode"] };
+import { ColumnRule, validateColumnRules, matchesColumnRules } from "../analysis-column-rules";
 import { sortByCriteria, SortCriterion } from "../analysis-sorting";
 export type StockPeriod = { year: number; period: number };
 export function validateStockPeriods(value: any): StockPeriod[] {
@@ -158,6 +162,9 @@ export const DEFAULT_STOCK_COLUMNS = [
     "warnings",
 ];
 export type StockSearch = {
+    special?: SpecialFilter[];
+    modes?: FilterModes;
+    rules?: ColumnRule[];
     article: string;
     exactArticle: string;
     description: string;
@@ -201,6 +208,8 @@ export function validateStockSearch(value: any): StockSearch {
         throw Error("Filtri giacenze non validi.");
     const clean = {
         ...emptyStockSearch(),
+        rules: [] as ColumnRule[],
+        modes: {} as FilterModes,
         ownership: value.ownership,
         scope: value.scope,
         storages: [...new Set(value.storages)] as string[],
@@ -220,6 +229,9 @@ export function validateStockSearch(value: any): StockSearch {
     }
     if (!["", "customer", "supplier"].includes(clean.subjectKind))
         throw Error("Tipo soggetto non valido.");
+    clean.modes = validateFilterModes(value.modes, Object.keys(STOCK_FILTER_GROUPS));
+    if (value.special !== undefined) clean.special = validateSpecialFilters(value.special, STOCK_COLUMNS);
+    clean.rules = validateColumnRules(value.rules, STOCK_COLUMNS);
     clean.sort = value.sort.map((c: any) => {
         if (
             !STOCK_COLUMNS.some((col) => col.key === c?.key) ||
@@ -359,11 +371,15 @@ const norm = (v: any) =>
     String(v ?? "")
         .trim()
         .toLocaleLowerCase("it");
-export function filterStock(rows: StockRow[], input: StockSearch) {
+export function filterStock(rows: StockRow[], input: StockSearch): StockRow[] {
+    if (input.modes && Object.keys(input.modes).length) return filterWithModes(rows, input, { ...emptyStockSearch(), scope: "all" as const }, STOCK_FILTER_GROUPS, (source, value) => filterStock([...source], value));
     const s = validateStockSearch(input);
+    const matchesSpecial = specialFilterMatcher(s.special, STOCK_COLUMNS);
     return sortByCriteria(
         rows.filter(
             (r) =>
+                matchesSpecial(r) &&
+                matchesColumnRules(r, s.rules || [], STOCK_COLUMNS) &&
                 (!s.exactArticle || norm(r.article) === norm(s.exactArticle)) &&
                 norm(r.article).includes(norm(s.article)) &&
                 norm(r.description).includes(norm(s.description)) &&

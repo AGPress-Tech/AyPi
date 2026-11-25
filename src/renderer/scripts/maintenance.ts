@@ -1,3 +1,4 @@
+import { rememberSuccessfulLogin } from "../modules/remembered-login";
 import { continueTableOnScroll } from "../modules/table-scroll-loader";
 import { analysisYearPicker } from "../modules/analysis-year-picker";
 import Chart from "chart.js/auto";
@@ -1154,12 +1155,14 @@ $("loginForm").onsubmit = async (e) => {
     e.preventDefault();
     $<HTMLButtonElement>("loginSubmit").disabled = true;
     try {
+        const successfulLoginDepartment = $<HTMLSelectElement>("loginDepartment").value;
         const result = await ipc.invoke(
             "maintenance-login",
             $<HTMLSelectElement>("loginEmployee").value,
         );
         if (!result.ok) throw Error(result.error);
         actor = result.actor;
+        void rememberSuccessfulLogin(actor, successfulLoginDepartment);
         snapshot = result;
         const pref = await api("preferences-get");
         if (pref.preferences) {

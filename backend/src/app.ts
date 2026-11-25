@@ -1,6 +1,9 @@
 import { initializeSupplierEvaluation } from "./modules/supplier-evaluation/service";
 import { initializeBackupRecovery } from "./modules/backups/service";
-import { ensureAgpressDailyBackup } from "./shared/storage/agpress-backups";
+import {
+    AUTOMATIC_BACKUPS_ENABLED,
+    ensureAgpressDailyBackup,
+} from "./shared/storage/agpress-backups";
 import {
     assertServiceAvailable,
     isBackupRecoveryRequired,
@@ -281,9 +284,17 @@ export async function startBackendServer(): Promise<BackendServerHandle> {
                         });
                     }
                 };
-                runDailyBackup();
-                dailyBackupTimer = setInterval(runDailyBackup, 60 * 60 * 1000);
-                dailyBackupTimer.unref();
+                if (AUTOMATIC_BACKUPS_ENABLED) {
+                    runDailyBackup();
+                    dailyBackupTimer = setInterval(runDailyBackup, 60 * 60 * 1000);
+                    dailyBackupTimer.unref();
+                } else {
+                    logger.info("Backup automatici sospesi per questa release", {
+                        event: "automatic_backups_suspended",
+                        category: "lifecycle",
+                        module: "core",
+                    });
+                }
                 try {
                     mobileGateway = await startMobileGatewayServer();
                 } catch (error) {

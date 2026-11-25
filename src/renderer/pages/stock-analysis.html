@@ -31,7 +31,8 @@
     <main>
         <form id="searchForm" class="filter-panel">
             <div class="filter-heading"><span class="eyebrow">CRITERI DI RICERCA</span>
-                <h2>Filtri giacenze</h2>
+                <h2>Trova nelle giacenze</h2>
+                <p>Alternative nello stesso filtro, condizioni combinate tra filtri diversi.</p>
             </div>
             <div class="filter-scroll">
                 <details id="period" class="filter-group stock-period-picker">
@@ -50,6 +51,8 @@
                         <option value="shortage">Impegni oltre giacenza</option>
                         <option value="minimum">Sotto scorta minima</option>
                     </select></label>
+                <div id="stockRuleGroups"></div>
+                <details class="filter-group"><summary>Filtri rapidi</summary>
                 <details class="filter-group" open>
                     <summary>Articolo</summary>
                     <div class="stock-fields"><label class="stock-field">Codice<input id="article" type="search"
@@ -80,6 +83,7 @@
                                 <option value="customer">Cliente</option>
                                 <option value="supplier">Fornitore</option>
                             </select></label></div>
+                </details>
                 </details>
             </div>
             <div class="filter-actions"><button type="submit" class="primary">Cerca</button><button id="reset"

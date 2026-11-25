@@ -1,6 +1,7 @@
 const fs = require("fs");
 const path = require("path");
 const { spawnSync } = require("child_process");
+const { rendererModuleFolders } = require("./renderer-module-folders.cjs");
 
 const rootDir = path.resolve(__dirname, "..");
 const distDir = path.join(rootDir, "dist-ts");
@@ -77,6 +78,10 @@ copyDir(
   path.join(distDir, "templates"),
   { skipExt: [".ts"] },
 );
+
+for (const folder of rendererModuleFolders(path.join(rootDir, "src", "renderer"))) {
+  copyDir(folder, path.join(distDir, "modules", path.basename(folder)), { skipExt: [".ts", ".md"] });
+}
 
 // Generate git stats cache for infographics (optional).
 try {

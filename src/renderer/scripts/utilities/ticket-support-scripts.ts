@@ -1,4 +1,5 @@
 // @ts-nocheck
+import { rememberSuccessfulLogin } from "../../modules/remembered-login";
 require("../shared/dev-guards");
 import {
     loadStore,
@@ -2384,6 +2385,7 @@ function bindLoginEvents() {
                 department: dept,
                 employee: emp,
             });
+            void rememberSuccessfulLogin(emp, dept);
             saveSession();
             closeLoginModal();
             renderAll();
@@ -2446,6 +2448,7 @@ function bindLoginEvents() {
                     department: "",
                     employee: "",
                 });
+                void rememberSuccessfulLogin(verified.admin.name, "", "admin");
                 saveSession();
                 closeLoginModal();
                 renderAll();

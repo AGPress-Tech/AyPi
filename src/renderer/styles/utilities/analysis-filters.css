@@ -2,6 +2,60 @@
     --analysis-filter-width: 264px
 }
 
+.analysis-special-filters { order: 1; padding: 7px 12px; border-top: 1px solid var(--ops-line, #ddd); flex: none; min-width: 0 }
+.analysis-special-filters>[data-special-create] { width: 100% }
+.special-filter-list { max-height: 125px; overflow: auto; padding: 3px; scroll-padding: 4px }
+.special-filter-chip { display: flex; align-items: center; gap: 5px; margin-top: 5px; min-width: 0 }
+.special-filter-chip>label { flex: 1 !important; display: flex !important; flex-direction: row !important; align-items: center; gap: 5px; overflow-wrap: anywhere }
+.special-filter-chip>button:last-child { width: 30px; height: 30px; flex: none; font-size: 18px !important; padding: 0 !important }
+.analysis-special-dialog { width: min(700px, calc(100vw - 32px)); max-width: none; max-height: min(760px, calc(100vh - 32px)); padding: 0; border: 1px solid var(--ops-line, #ddd); border-radius: 12px; background: var(--ops-surface, #fff); color: var(--ops-ink, #222); box-shadow: 0 18px 70px #0004; overflow: hidden }
+.analysis-special-dialog::backdrop { background: #0006 }
+.analysis-special-dialog>form { display: flex; flex-direction: column; max-height: min(758px, calc(100vh - 34px)); margin: 0 }
+.analysis-special-dialog header, .analysis-special-dialog footer { display: flex; align-items: center; gap: 8px; padding: 12px 16px; flex: none }
+.analysis-special-dialog header { justify-content: space-between; border-bottom: 1px solid var(--ops-line, #ddd) }
+.analysis-special-dialog h2 { margin: 0; font-size: 18px }
+.analysis-special-dialog header button { width: 30px; height: 30px; padding: 0; font-size: 20px }
+.analysis-special-dialog footer { justify-content: flex-end; border-top: 1px solid var(--ops-line, #ddd) }
+.special-dialog-scroll { overflow: auto; padding: 12px 16px 16px; min-height: 0; scroll-padding: 6px }
+.special-dialog-scroll>label { display: flex; flex-direction: column; gap: 4px; margin-bottom: 9px }
+.special-dialog-scroll>p { font-size: 12px; color: var(--ops-muted, #666); margin: 8px 0 }
+.analysis-special-dialog input, .analysis-special-dialog select { box-sizing: border-box; min-width: 0; width: 100%; height: 32px; padding: 5px 7px; color: var(--ops-ink, #222); background: var(--ops-surface, #fff); border: 1px solid var(--ops-line, #ddd); border-radius: 6px; font: 12px 'Segoe UI', sans-serif }
+.analysis-special-dialog button { min-height: 30px; padding: 5px 9px; border: 1px solid var(--ops-accent, #cc930e); border-radius: 6px; background: var(--ops-soft, #fff8e8); color: var(--ops-ink, #222); cursor: pointer }
+.analysis-special-dialog footer .primary { background: var(--ops-accent, #cc930e); color: #fff }
+.special-condition-group { padding: 10px; margin: 9px 0 0; border: 1px solid var(--ops-line, #ddd); border-radius: 8px; min-width: 0 }
+.special-condition-group legend { font-size: 12px; padding: 0 5px }
+.special-group-head, .special-group-actions { display: flex; gap: 6px; align-items: center }
+.special-group-head>select { flex: 1 }
+.special-group-actions { margin-top: 8px; flex-wrap: wrap }
+.special-condition { display: grid; grid-template-columns: minmax(90px, 1fr) minmax(100px, 1fr) minmax(70px, 1fr) 30px; gap: 6px; align-items: end; margin-top: 9px }
+.special-condition:has([data-special-to]) { grid-template-columns: minmax(80px, 1fr) minmax(95px, 1fr) minmax(65px, .8fr) minmax(65px, .8fr) 30px }
+.special-condition label { display: flex; flex-direction: column; gap: 4px; min-width: 0; font-size: 11px }
+.special-condition>[data-special-remove], .special-group-head>[data-special-remove] { width: 30px; height: 32px; padding: 0; font-size: 18px }
+.analysis-special-dialog :focus-visible { outline: 2px solid var(--ops-accent, #cc930e); outline-offset: 2px }
+.analysis-special-dialog [data-special-error] { color: #b3261e }
+@media(max-width: 700px) { .special-condition, .special-condition:has([data-special-to]) { grid-template-columns: minmax(80px, 1fr) minmax(80px, 1fr); } .special-condition>[data-special-remove] { justify-self: end } }
+
+.analysis-filter-mode {
+    display: flex;
+    min-width: 0;
+    margin: 0;
+}
+
+.analysis-filter-mode select, [data-rule-mode] {
+    width: 100%;
+    min-width: 0;
+    color: var(--ops-ink, #222);
+    background: var(--ops-soft, #fff8e8);
+}
+
+.analysis-detail-rule:has([data-rule-mode]),
+.maintenance-rule:has([data-rule-mode]),
+.supplier-custom-rule:has([data-rule-mode]),
+.tooling-rule:has([data-rule-mode]) {
+    grid-template-columns: repeat(auto-fit, minmax(min(130px, 100%), 1fr));
+    min-width: 0;
+}
+
 .aypi-inventory-filter-layout {
     display: grid !important;
     grid-template-columns: var(--analysis-filter-width) minmax(0, 1fr) !important;
