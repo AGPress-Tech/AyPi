@@ -26,7 +26,8 @@ const rows = model.normalizeCustomerRows([
     { ...base, kind: 'offer', documentId: 2, documentNo: 'OFF-2', quantity: 20, netAmount: null, netPrice: null, documentDate: null, delivered: null, cancelled: null, residual: null, deliveredQuantity: null },
 ]);
 async function main() {
-    const filters = model.defaultCustomerFilters(), selected = model.filterCustomerRows(rows, filters, '2026-11-10'), stats = model.customerStats(selected, '2026-11-10');
+    assert.deepEqual(model.defaultCustomerFilters().years, require("../src/main/modules/analysis-filter-modes.ts").recentAnalysisYears().map(String));
+    const filters = { ...model.defaultCustomerFilters(), years: [] }, selected = model.filterCustomerRows(rows, filters, '2026-11-10'), stats = model.customerStats(selected, '2026-11-10');
     assert.equal(stats.orders, 2); assert.equal(stats.offers, 2); assert.equal(stats.documents, 4); assert.equal(stats.lines, 5); assert.equal(stats.open, 2); assert.equal(stats.overdue, 1); assert.equal(stats.missingDeliveries, 1); assert.equal(stats.missingPrices, 1); assert.equal(stats.missingDates, 1);
     assert.deepEqual(stats.units.find(u => u.unit === 'PZ'), { unit: 'PZ', orders: 150, offers: 220, delivered: 75, residual: 75 });
     assert.deepEqual(stats.currencies.find(v => v.currency === 'EUR'), { currency: 'EUR', orders: 225, offers: 300, netOrders: 180, netOffers: 300, backlog: 112.5, missing: 1, missingAmount: 1 });
@@ -86,7 +87,9 @@ async function main() {
     const linked = documentLinksQuery({ kind: 'order', id: 123 }); assert.equal(linked.bindings[0].value, 123); assert.match(linked.sql, /ReferenceQuotationId/); assert.match(linked.sql, /MA_CrossReferences/); assert.match(linked.sql, /DerivedDocID=@id/);
     assert.equal(validateArticleOrderFilters({ articles: [], orders: [{ op: 'exact', value: '26/001' }] }).articles.length, 0);
     assert.equal(validateArticleOfferFilters({ articles: [], offers: [{ op: 'exact', value: '26/OFF-1' }] }).articles.length, 0);
-    assert.throws(() => validateArticleOrderFilters({ articles: [], orders: [{ op: 'contains', value: '26' }] }));
+    assert.equal(validateArticleOrderFilters({ articles: [], orders: [{ op: 'contains', value: '26' }] }).orders.length, 1);
+    assert.equal(validateArticleOrderFilters({}).articles.length, 0);
+    assert.equal(validateArticleOfferFilters({}).articles.length, 0);
     let recordset = [], calls = [];
     const driver = {
         VarChar: n => `text:${n}`, Date: 'date', ConnectionPool: class {
@@ -135,14 +138,14 @@ async function testIpc() {
     assert.equal((await handlers['customer-analysis-load'](event, { customer: 'C001' })).ok, true);
     const prefs = model.emptyCustomerPreferences(); assert.equal((await handlers['customer-analysis-preferences-save'](event, prefs)).ok, true);
     assert.equal((await handlers['customer-analysis-preferences-load'](event)).preferences.charts.length, 4);
-    const exported = await handlers['customer-analysis-export'](event, model.defaultCustomerFilters()); assert.equal(exported.ok, true); assert.equal(exported.count, 5);
+    const exported = await handlers['customer-analysis-export'](event, { ...model.defaultCustomerFilters(), years: [] }); assert.equal(exported.ok, true); assert.equal(exported.count, 5);
     const workbook = XLSX.readFile(path.join(artifacts, 'result.xlsx'), { cellNF: true, cellDates: true }); assert(workbook.SheetNames.includes('Storico mensile')); assert.equal(XLSX.utils.sheet_to_json(workbook.Sheets['Righe documenti']).length, 5); assert.equal(XLSX.utils.sheet_to_json(workbook.Sheets.Documenti).length, 4); assert.equal(workbook.Sheets['Righe documenti'].D2.t, 'd'); assert.equal(workbook.Sheets.Documenti.D2.t, 'd');
     assert(workbook.SheetNames.includes('Ciclo articoli')); assert(workbook.SheetNames.includes('Articoli per anno')); assert(workbook.SheetNames.includes('Articoli per ordine')); assert(workbook.SheetNames.includes('Nuovi articoli')); assert(workbook.SheetNames.includes('Previsione articoli'));
     assert.equal(workbook.Sheets['Ciclo articoli'].A2.t, 's'); assert.equal(workbook.Sheets['Ciclo articoli'].E2.t, 'd'); assert.equal(workbook.Sheets['Ciclo articoli'].J2.t, 'n'); assert.equal(workbook.Sheets['Articoli per ordine'].F2.t, 'd');
     const selectedFilters = { ...model.defaultCustomerFilters(), selection: model.toggleCustomerSelection(model.emptyCustomerSelection(), 'article', 'ART-B') };
     assert.equal((await handlers['customer-analysis-export'](event, selectedFilters)).count, 1, 'Excel follows the shared chart selection');
     fail = true; assert.equal((await handlers['customer-analysis-load'](event, { customer: 'OTHER' })).ok, false);
-    assert.equal((await handlers['customer-analysis-export'](event, model.defaultCustomerFilters())).count, 5, 'La cache precedente sopravvive a una lettura fallita');
+    assert.equal((await handlers['customer-analysis-export'](event, { ...model.defaultCustomerFilters(), years: [] })).count, 5, 'La cache precedente sopravvive a una lettura fallita');
     const settings = path.join(artifacts, 'customer-analysis.preferences.json'); fs.writeFileSync(settings, 'corrotto'); assert.equal((await handlers['customer-analysis-preferences-save'](event, prefs)).ok, false); assert.equal(fs.readFileSync(settings, 'utf8'), 'corrotto');
     fs.writeFileSync(settings, JSON.stringify(prefs));
 }

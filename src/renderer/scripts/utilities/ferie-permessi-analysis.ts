@@ -1,4 +1,7 @@
 // @ts-nocheck
+import { specialFilterEditor } from "../../modules/analysis-special-filter-editor";
+import { specialFilterMatcher } from "../../../main/modules/analysis-special-filters";
+import { matchesFilter, recentAnalysisYears } from "../../../main/modules/analysis-filter-modes";
 import { mergeAreaSelection } from "../../modules/analysis-chart-area-selection";
 import { installAnalysisWorkspace } from "../../modules/analysis-workspace";
 require("../shared/dev-guards");
@@ -350,8 +353,8 @@ function resolveRange() {
 
 function setDefaultRange() {
     const now = new Date();
-    const start = new Date(now.getFullYear(), now.getMonth(), 1);
-    const end = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+    const start = new Date(now.getFullYear() - 2, 0, 1);
+    const end = new Date(now.getFullYear(), 11, 31);
     const startInput = byId("fpa-start");
     const endInput = byId("fpa-end");
     if (startInput) startInput.value = toDateKey(start);
@@ -366,8 +369,10 @@ function toggleCustomDateInputs() {
     if (endInput) endInput.disabled = !custom;
 }
 
+const specialColumns = [["department", "Reparto", "text"], ["employee", "Dipendente", "text"], ["type", "Tipo assenza", "text"], ["start", "Inizio assenza", "date"], ["end", "Fine assenza", "date"]].map(([key, label, kind]) => ({ key, label, kind }));
+const specialEditor = specialFilterEditor(document.querySelector<HTMLElement>(".fpa-sidebar")!, specialColumns, () => scheduleDashboardRender());
 function getSelectedTypes() {
-    return TYPE_KEYS.filter((type) => byId(`fpa-type-${type}`)?.checked);
+    return TYPE_KEYS.filter((type) => matchesFilter({}.types, true, byId(`fpa-type-${type}`)?.checked));
 }
 
 async function hydrateDataset() {
@@ -478,10 +483,11 @@ function buildAnalysis(payload, selected = false) {
             error: "Intervallo troppo ampio. Seleziona un periodo massimo di 10 anni.",
         };
     }
+    const matchesSpecial = specialFilterMatcher(specialEditor.read(), specialColumns);
     const selectedTypes = getSelectedTypes();
     if (!selectedTypes.length)
         return { error: "Seleziona almeno un tipo assenza." };
-    if (!state.selectedDepartments.size)
+    if (!state.selectedDepartments.size && {}.departments !== "exclude")
         return { error: "Seleziona almeno un reparto." };
     const lineGroup = byId("fpa-line-group")?.value || "total";
     const granularity = byId("fpa-granularity")?.value || "day";
@@ -503,7 +509,7 @@ function buildAnalysis(payload, selected = false) {
         const type = req.type || "";
         if (!selectedTypes.includes(type)) return;
         const department = (req.department || "").trim() || DEPT_FALLBACK;
-        if (!state.selectedDepartments.has(department)) return;
+        if (!matchesFilter({}.departments, true, state.selectedDepartments.has(department))) return;
         const employeeRaw =
             typeof req.employee === "string"
                 ? req.employee
@@ -519,6 +525,7 @@ function buildAnalysis(payload, selected = false) {
             return;
         const dates = getRequestDates(req);
         if (!dates.start || !dates.end) return;
+        if (!matchesSpecial({ department, employee, type: getTypeLabel(type), start: toDateKey(dates.start), end: toDateKey(dates.end) })) return;
         const reqStart = toDay(dates.start);
         const reqEnd = toDay(dates.end);
         if (reqEnd < range.start || reqStart > range.end) return;
@@ -1267,8 +1274,10 @@ function scheduleDashboardRender() {
 }
 
 function resetFilters() {
+    specialEditor.sync();
+
     const month = document.querySelector(
-        "input[name='fpa-range'][value='month']",
+        "input[name='fpa-range'][value='custom']",
     );
     if (month) month.checked = true;
     const typeDefaults = {
@@ -1454,3 +1463,8 @@ const commonWorkspace = installAnalysisWorkspace({
         document.querySelector("main")!,
     reset: () => resetLinkedCharts(),
 });
+
+document.addEventListener("change", event => { if ((event.target as HTMLElement).matches("[data-filter-mode]")) scheduleDashboardRender(); });
+
+document.addEventListener("aypi-filter-preset-capture", (event: any) => { if ((event.target as HTMLElement).matches(".fpa-sidebar")) event.detail.state = { ...event.detail.state, kind: "calendar-analysis", departments: [...state.selectedDepartments] }; });
+document.addEventListener("aypi-filter-preset-restore", (event: any) => { const saved = event.detail.state; if (saved?.kind === "calendar-analysis" && Array.isArray(saved.departments)) state.selectedDepartments = new Set(saved.departments.filter((value: unknown) => typeof value === "string")); });

@@ -4,6 +4,8 @@
 
 .analysis-special-filters { order: 1; padding: 7px 12px; border-top: 1px solid var(--ops-line, #ddd); flex: none; min-width: 0 }
 .analysis-special-filters>[data-special-create] { width: 100% }
+.filters .analysis-special-filters { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 4px 0; border: 0 }
+.filters .analysis-special-filters>[data-special-create] { width: auto }
 .special-filter-list { max-height: 125px; overflow: auto; padding: 3px; scroll-padding: 4px }
 .special-filter-chip { display: flex; align-items: center; gap: 5px; margin-top: 5px; min-width: 0 }
 .special-filter-chip>label { flex: 1 !important; display: flex !important; flex-direction: row !important; align-items: center; gap: 5px; overflow-wrap: anywhere }

@@ -10,7 +10,7 @@ export const SPECIAL_OPERATORS = {
     empty: "Mancante / vuoto", present: "Presente / non vuoto",
 };
 export function specialOperators(kind: string) {
-    return kind === "number" || kind === "date"
+    return kind === "number" || kind === "money" || kind === "date"
         ? ["exact", "different", "range", "gt", "gte", "lt", "lte", "empty", "present"]
         : kind === "boolean" ? ["exact", "different", "empty", "present"]
         : ["contains", "not", "prefix", "suffix", "exact", "different", "range", "empty", "present"];
@@ -18,7 +18,7 @@ export function specialOperators(kind: string) {
 export function validateSpecialFilters(input: unknown, columns: readonly SpecialColumn[]): SpecialFilter[] {
     if (input === undefined) return [];
     if (!Array.isArray(input) || input.length > 12) throw Error("Massimo 12 filtri speciali.");
-    const fields = new Map(columns.map(c => [c.key, c]));
+    const fields = new Map(columns.map(c => [c.key, { ...c, kind: c.kind === "money" ? "number" : c.kind }]));
     let count = 0;
     function condition(source: any, depth: number): SpecialCondition {
         if (!source || typeof source !== "object" || Array.isArray(source) || ++count > 100)
@@ -55,7 +55,7 @@ export function validateSpecialFilters(input: unknown, columns: readonly Special
     });
 }
 export function specialFilterMatcher(input: unknown, columns: readonly SpecialColumn[]) {
-    const filters = validateSpecialFilters(input, columns), fields = new Map(columns.map(c => [c.key, c]));
+    const filters = validateSpecialFilters(input, columns), fields = new Map(columns.map(c => [c.key, { ...c, kind: c.kind === "money" ? "number" : c.kind }]));
     const text = (value: unknown) => String(value ?? "").trim().toLocaleLowerCase("it");
     function matches(row: Record<string, any>, condition: SpecialCondition): boolean {
         if ("join" in condition) return condition.join === "all" ? condition.conditions.every(c => matches(row, c)) : condition.conditions.some(c => matches(row, c));

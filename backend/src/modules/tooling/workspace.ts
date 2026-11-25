@@ -1,3 +1,4 @@
+import { validateStoredSpecialFilters } from "../analytics/special-filters";
 import { day, text } from "./model";
 const list = (v: any, max = 100) => {
     if (
@@ -85,6 +86,7 @@ export function validateWorkspace(v: any) {
             "assignee",
         ])
             filters[field] = text(f[field] || "", 1000);
+        filters.special = validateStoredSpecialFilters(f.special);
         filters.from = f.from ? day(f.from) : "";
         filters.to = f.to ? day(f.to) : "";
         if (filters.from && filters.to && filters.from > filters.to)

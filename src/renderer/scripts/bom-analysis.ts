@@ -1,3 +1,6 @@
+import { specialFilterEditor } from "../modules/analysis-special-filter-editor";
+import { recentAnalysisYears } from "../../main/modules/analysis-filter-modes";
+import { ruleMode, readRuleMode } from "../modules/analysis-rule-mode";
 import { continueTableOnScroll } from "../modules/table-scroll-loader";
 import {
     BOM_COLUMNS,
@@ -38,9 +41,10 @@ const num = (v: unknown, d = 6) =>
     new Intl.NumberFormat("it-IT", { maximumFractionDigits: d }).format(
         Number(v),
     );
+const initialSearch = (): ReturnType<typeof emptyBomSearch> => ({ ...emptyBomSearch(), rules: [{ field: "modified", op: "range" as const, value: recentAnalysisYears()[0] + "-01-01", to: recentAnalysisYears()[2] + "-12-31" }] });
 let rows: BomRow[] = [],
     filtered: BomRow[] = [],
-    search = emptyBomSearch(),
+    search = initialSearch(),
     limit = 250,
     loading = false,
     loaded = false;
@@ -50,8 +54,8 @@ let preferences: BomPreferences = {
     presets: [],
 };
 const searches: Record<string, BomSearch> = {
-    "where-used": emptyBomSearch(),
-    composition: { ...emptyBomSearch(), mode: "composition" },
+    "where-used": initialSearch(),
+    composition: { ...initialSearch(), mode: "composition" },
 };
 const expandedArticles = new Set<string>();
 let detailHistory: string[] = [],
@@ -68,6 +72,7 @@ const equal = (a: unknown, b: unknown) =>
     String(b ?? "")
         .trim()
         .toLocaleLowerCase("it");
+const specialEditor = specialFilterEditor($("searchForm"), BOM_COLUMNS, () => { try { apply(readSearch()); } catch (error) { setStatus((error as Error).message, true); } });
 function fieldInput(col: (typeof BOM_COLUMNS)[number], rule: any) {
     if (col.kind === "boolean")
         return `<select data-value aria-label="${esc(col.label)}"><option value="">Tutti</option><option value="1" ${rule.value === "1" ? "selected" : ""}>Sì</option><option value="0" ${rule.value === "0" ? "selected" : ""}>No</option></select>`;
@@ -95,6 +100,7 @@ function ruleHtml(col: (typeof BOM_COLUMNS)[number], rule: any) {
     return `<div class="rule"><div class="rule-fields">${fieldInput(col, rule)}</div><button type="button" class="remove-rule" aria-label="Rimuovi condizione ${esc(col.label)}">×</button></div>`;
 }
 function renderFilters() {
+    specialEditor.sync(search.special);
     const openStates = new Map(
         [
             ...$("filterGroups").querySelectorAll<HTMLDetailsElement>(
@@ -150,6 +156,7 @@ function readSearch(): BomSearch {
                             ?.value || "exact";
                 if (value || to)
                     rules.push({
+                        ...readRuleMode(rule),
                         field: group.dataset.field,
                         op,
                         value,
@@ -157,7 +164,7 @@ function readSearch(): BomSearch {
                     });
             }),
         );
-    return validateBomSearch({ ...search, rules });
+    return validateBomSearch({ ...search, rules, special: specialEditor.read() });
 }
 function apply(next: BomSearch) {
     search = validateBomSearch(next);

@@ -1,3 +1,4 @@
+import { validateStoredSpecialFilters } from "../analytics/special-filters";
 import { calendarDate } from "./model";
 export function validatePreferences(value: any) {
     const object = (v: any) => v && typeof v === "object" && !Array.isArray(v);
@@ -75,6 +76,7 @@ export function validatePreferences(value: any) {
             name: p.name.trim(),
             view: p.view,
             filters: {
+                special: validateStoredSpecialFilters(f.special),
                 departments: list(f.departments, 1000),
                 machines: list(f.machines, 10000),
                 kind: f.kind,

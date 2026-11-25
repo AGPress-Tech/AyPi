@@ -1,3 +1,6 @@
+import { SpecialFilter } from "../../main/modules/analysis-special-filters";
+import { recentAnalysisYears } from "../../main/modules/analysis-filter-modes";
+import { specialFilterEditor, matchesSpecialRow } from "../modules/analysis-special-filter-editor";
 import { rememberSuccessfulLogin } from "../modules/remembered-login";
 import type { AnalysisContext } from "../../main/modules/analysis-navigation-model";
 import {
@@ -110,6 +113,7 @@ const titles: any = {
     report: "Utensili/Attrezzature danneggiate e rotture",
 };
 const emptyFilters = () => ({
+    special: [] as SpecialFilter[],
     text: "",
     category: "",
     location: "",
@@ -137,7 +141,7 @@ let data: any = {
     },
     actor = "",
     view = "tools",
-    filters = emptyFilters(),
+    filters = { ...emptyFilters(), from: recentAnalysisYears()[0] + "-01-01", to: recentAnalysisYears()[2] + "-12-31" },
     sort: SortCriterion[] = [{ key: "code", direction: "asc" }],
     preferences: any = { filterPresets: [], columns: [] },
     busy = false;
@@ -225,6 +229,7 @@ function condition(row: any, r: any) {
 function manualTools() {
     return data.tools.map(enrich).filter(
         (t) =>
+            matchesSpecialRow(t, filters.special, customSpecialColumns()) &&
             (!filters.text ||
                 [
                     t.code,
@@ -780,7 +785,23 @@ function monthlyRuptures() {
         },
     ).join("");
 }
+let customSpecialEditor: ReturnType<typeof specialFilterEditor> | undefined;
+function customSpecialColumns() {
+    return [...new Map((toolColumns.map(([key, label, kind]) => ({ key, label, kind: kind || "text" }))).map(c => [c.key, c])).values()];
+}
+function syncCustomSpecialFilters() {
+    if (!customSpecialEditor) {
+        const host = document.createElement("div");
+        $("addRule").after(host);
+        customSpecialEditor = specialFilterEditor(host, customSpecialColumns, () => {
+            filters.special = customSpecialEditor!.read();
+            render();
+        });
+    }
+    customSpecialEditor.sync(filters.special);
+}
 function render() {
+    syncCustomSpecialFilters();
     const alertCount = data.tools.filter(
         (t) => t.active && (t.usable === 0 || t.reorder > 0),
     ).length;

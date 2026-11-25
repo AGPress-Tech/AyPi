@@ -1,7 +1,5 @@
 import { specialFilterEditor } from "../modules/analysis-special-filter-editor";
-import { nativeFilterModes } from "../modules/analysis-native-filter-modes";
 import { columnRuleEditor } from "../modules/analysis-column-rule-editor";
-import { recentAnalysisYears } from "../../main/modules/analysis-filter-modes";
 import {
     STOCK_COLUMNS,
     DEFAULT_STOCK_COLUMNS,
@@ -63,7 +61,6 @@ let preferences: StockPreferences = {
     presets: [],
 };
 const ruleEditor = columnRuleEditor($("stockRuleGroups"), STOCK_COLUMNS);
-const filterModes = nativeFilterModes({ scope:["#scope"], storages:["#storageOptions"], ownership:["#ownership"], subjectKind:["#subjectKind"], unit:["#unit"], article:["#article"], description:["#description"], subject:["#subject"], subjectCode:["#subjectCode"] });
 const specialEditor = specialFilterEditor($("searchForm"), STOCK_COLUMNS, () => { try { search = readFilters(); render(); } catch (error) { report(error); } });
 const expanded = new Set<string>();
 let detailId = 0,
@@ -92,7 +89,7 @@ function readFilters(): StockSearch {
         ...search,
         rules: ruleEditor.read(),
         special: specialEditor.read(),
-        modes: filterModes.read(),
+        modes: {},
         article: $<HTMLInputElement>("article").value,
         exactArticle: $<HTMLInputElement>("exactArticle").checked
             ? $<HTMLInputElement>("article").value
@@ -130,9 +127,11 @@ function visibleColumns() {
     return stockVisibleColumns(rows, preferences.columns, selected);
 }
 function renderFilters() {
+    search.modes = {};
+    search.rules = (search.rules || []).map(({ exclude, ...rule }) => rule);
     specialEditor.sync(search.special);
     ruleEditor.render(search.rules || []);
-    filterModes.sync(search.modes);
+
     $("unit").innerHTML =
         '<option value="">Tutte</option>' +
         [...new Set([...rows.map((r) => r.unit), search.unit])]
@@ -679,12 +678,6 @@ void (async () => {
     renderPreferences();
     renderFilters();
     await load();
-    const recent = periodOptions.filter(p => recentAnalysisYears().includes(p.year));
-    if (recent.length && JSON.stringify(recent) !== JSON.stringify(selected)) await load({ periods: recent });
-    if (!recent.length) {
-        search.rules = [{ field: "fiscalYear", op: "range", value: String(recentAnalysisYears()[0]), to: String(recentAnalysisYears()[2]) }];
-        renderFilters(); render();
-    }
     if (preferenceError) report(preferenceError);
     ipc.send("analysis-context-ready");
 })();

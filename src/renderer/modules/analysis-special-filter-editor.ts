@@ -11,7 +11,7 @@ export function matchesSpecialRow(row: Record<string, any>, filters: SpecialFilt
 }
 const esc = (value: unknown) => String(value ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!);
 export function specialFilterEditor(host: HTMLElement, fields: readonly SpecialColumn[] | (() => readonly SpecialColumn[]), changed: () => void) {
-    const columns = () => typeof fields === "function" ? fields() : fields;
+    const columns = () => (typeof fields === "function" ? fields() : fields).map(c => ({ ...c, kind: c.kind === "money" ? "number" : c.kind }));
     let filters: SpecialFilter[] = [], draft: SpecialFilter, editing = -1, opener: HTMLElement | null = null;
     const section = document.createElement("section");
     section.className = "analysis-special-filters";
@@ -128,7 +128,13 @@ export function specialFilterEditor(host: HTMLElement, fields: readonly SpecialC
             filters = validateSpecialFilters(next, columns()); render(); dialog.close(); changed();
         } catch (error) { el("[data-special-error]").textContent = (error as Error).message; }
     });
-    dialog.addEventListener("close", () => (opener?.isConnected ? opener : section.querySelector<HTMLElement>("[data-special-create]"))?.focus());
+    dialog.addEventListener("pointerdown", event => event.stopPropagation());
+    dialog.addEventListener("close", () => {
+        const target = opener?.isConnected ? opener : section.querySelector<HTMLElement>("[data-special-create]");
+        for (let ancestor = target?.parentElement; ancestor; ancestor = ancestor.parentElement)
+            if (ancestor instanceof HTMLDetailsElement) ancestor.open = true;
+        target?.focus();
+    });
     dialog.addEventListener("keydown", event => { if (event.key === "Escape") event.stopPropagation(); });
     host.addEventListener("aypi-filter-preset-capture", (event: CustomEvent) => { event.detail.state = { ...event.detail.state, special: validateSpecialFilters(filters, columns()) }; });
     host.addEventListener("aypi-filter-preset-restore", (event: CustomEvent) => { filters = validateSpecialFilters(event.detail.state?.special, columns()); render(); });

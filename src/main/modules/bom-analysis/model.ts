@@ -1,3 +1,5 @@
+import { SpecialFilter, validateSpecialFilters, specialFilterMatcher } from "../analysis-special-filters";
+import { matchesAlternatives, exclusion } from "../analysis-filter-modes";
 import { SortCriterion, sortByCriteria } from "../analysis-sorting";
 export const BOM_COLUMNS = [
     ["bom", "Distinta base", "text"],
@@ -100,12 +102,14 @@ export function visibleSummaryColumns(
 }
 export type BomRow = Record<string, string | number | null>;
 export type BomRule = {
+    exclude?: boolean;
     field: string;
     op: "contains" | "exact" | "prefix" | "range";
     value: string;
     to?: string;
 };
 export type BomSearch = {
+    special?: SpecialFilter[];
     mode: "where-used" | "composition";
     rules: BomRule[];
     sort: SortCriterion[];
@@ -255,6 +259,7 @@ export function validateBomSearch(value: any): BomSearch {
                 throw Error("Intervallo invertito.");
         }
         return {
+            ...exclusion(r.exclude),
             field: r.field,
             op: r.op,
             value: r.value.trim(),
@@ -271,7 +276,7 @@ export function validateBomSearch(value: any): BomSearch {
             throw Error("Ordinamento non valido.");
         return { key: s.key, direction: s.direction };
     });
-    return { mode: value.mode, rules, sort };
+    return { mode: value.mode, rules, sort, ...(value.special === undefined ? {} : { special: validateSpecialFilters(value.special, BOM_COLUMNS) }) };
 }
 export function filterBomRows(
     rows: readonly BomRow[],
@@ -285,13 +290,14 @@ export function filterBomRows(
         group.push(r);
         groups.set(r.field, group);
     }
+    const matchesSpecial = specialFilterMatcher(search.special, BOM_COLUMNS);
     const normalize = (v: unknown) => String(v ?? "").toLocaleLowerCase("it");
     return sortByCriteria(
         rows.filter(
             (row) =>
-                (search.mode !== "where-used" || !!row.component) &&
+                (search.mode !== "where-used" || !!row.component) && matchesSpecial(row) &&
                 [...groups].every(([field, rules]) =>
-                    rules.some((rule) => {
+                    matchesAlternatives(rules, (rule) => {
                         const col = BOM_COLUMNS.find((c) => c.key === field)!,
                             v = row[field];
                         if (v == null) return false;

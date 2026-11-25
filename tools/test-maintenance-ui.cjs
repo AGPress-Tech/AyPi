@@ -30,7 +30,18 @@ app.whenReady().then(async () => {
         await until("document.querySelectorAll('#loginEmployee option').length>1");
         await run("document.querySelector('#loginDepartment').value='Torneria';document.querySelector('#loginDepartment').dispatchEvent(new Event('change'));document.querySelector('#loginEmployee').value='Admin Senza Password';document.querySelector('#loginForm').requestSubmit()");
         await until("!document.querySelector('#workspace').hidden && document.querySelectorAll('[data-expand-chart]').length>=4");
+        assert.equal(await run("document.querySelector('#dateFrom').value"), String(new Date().getFullYear()-2)+"-01-01"); await run("document.querySelector('#dateFrom').value='';document.querySelector('#dateTo').value='';document.querySelector('#dateFrom').dispatchEvent(new Event('change',{bubbles:true}))");
         assert.equal(await run("document.querySelectorAll('input[type=password]').length"), 0);
+        // Custom filters live inside the existing popup, without a new sidebar.
+        assert.equal(await run("!!document.querySelector('.aypi-filter-panel')"), false);
+        await run("document.querySelector('[data-view=records]').click();document.querySelector('.advanced-filters').open=true;document.querySelector('#customFilters').open=true;document.querySelector('[data-special-create]').click()");
+        await run("(()=>{const d=document.querySelector('.analysis-special-dialog');d.querySelector('[data-special-name]').value='Macchina M1';const field=d.querySelector('[data-special-path=\"root.0\"] [data-special-field]');field.value='machineCode';field.dispatchEvent(new Event('change',{bubbles:true}));const op=d.querySelector('[data-special-path=\"root.0\"] [data-special-op]');op.value='exact';op.dispatchEvent(new Event('change',{bubbles:true}));const value=d.querySelector('[data-special-path=\"root.0\"] [data-special-value]');value.value='M1';value.dispatchEvent(new Event('input',{bubbles:true}));d.querySelector('[data-special-path=\"root.1\"] [data-special-remove]').click();value.dispatchEvent(new PointerEvent('pointerdown',{bubbles:true}));})()");
+        assert(await run("document.querySelector('.advanced-filters').open"), 'Editing the modal must retain its source popup');
+        await run("document.querySelector('.analysis-special-dialog form').requestSubmit()");
+        assert.equal(await run("document.querySelectorAll('#maintenanceTable tbody tr').length"), 2);
+        await run("document.querySelector('[data-special-edit]').click();const s=document.querySelector('[data-special-mode]');s.value='exclude';s.dispatchEvent(new Event('change',{bubbles:true}));document.querySelector('.analysis-special-dialog form').requestSubmit()");
+        assert.equal(await run("document.querySelectorAll('#maintenanceTable tbody tr').length"), 1);
+        await run("document.querySelector('[data-special-delete]').click();document.querySelector('[data-view=dashboard]').click();document.querySelector('.advanced-filters').open=false;document.querySelector('#customFilters').open=false");
         await run("document.querySelector('[data-view=due]').click()"); assert.equal(await run("document.querySelectorAll('[data-due-machine]').length"), 2); assert.equal(await run("document.querySelectorAll('[data-due-plan]').length"), 1);
         let menu = []; Menu.buildFromTemplate = items => ({ popup() { menu = items } });
         await run("document.querySelector('[data-due-machine=M1]').open=true;document.querySelector('[data-due-plan]').dispatchEvent(new MouseEvent('contextmenu',{bubbles:true,cancelable:true}))");

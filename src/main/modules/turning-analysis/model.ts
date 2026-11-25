@@ -1,3 +1,7 @@
+import { SpecialFilter, validateSpecialFilters, specialFilterMatcher } from "../analysis-special-filters";
+export const TURNING_SPECIAL_COLUMNS = [{"key": "article", "label": "Articolo", "kind": "text"}, {"key": "description", "label": "Descrizione", "kind": "text"}, {"key": "customer", "label": "Cliente", "kind": "text"}, {"key": "machine", "label": "Macchina", "kind": "text"}, {"key": "order", "label": "Ordine", "kind": "text"}, {"key": "phase", "label": "Fase", "kind": "text"}, {"key": "date", "label": "Data", "kind": "date"}, {"key": "year", "label": "Anno", "kind": "number"}, {"key": "month", "label": "Mese", "kind": "number"}, {"key": "unitPrice", "label": "Prezzo unitario", "kind": "number"}, {"key": "quantity", "label": "Quantit?", "kind": "number"}, {"key": "hours", "label": "Ore", "kind": "number"}, {"key": "revenue", "label": "Ricavo", "kind": "number"}, {"key": "rate", "label": "Resa ?/h", "kind": "number"}, {"key": "note", "label": "Note", "kind": "text"}];
+export const TURNING_FILTER_GROUPS = {"years": ["years"], "period": ["from", "to"], "machines": ["machines"], "customers": ["customers"], "articles": ["articles"], "search": ["search"], "rate": ["minRate", "maxRate"], "price": ["minPrice", "maxPrice"], "quantity": ["minQuantity", "maxQuantity"]};
+import { FilterModes, filterWithModes, validateFilterModes, recentAnalysisYears } from "../analysis-filter-modes";
 import * as XLSX from "xlsx";
 
 export const TURNING_SOURCE =
@@ -69,6 +73,8 @@ export type TurningData = {
     };
 };
 export type TurningFilters = {
+    special?: SpecialFilter[];
+    modes?: FilterModes;
     years: number[];
     from: number;
     to: number;
@@ -396,6 +402,8 @@ export function filterTurningRecords(
     filters: TurningFilters,
     years = filters.years,
 ) {
+    if (filters.modes && Object.keys(filters.modes).length) return filterWithModes(data.records, { ...filters, years }, { years: data.years, from: 1, to: 12, machines: [], customers: [], articles: [] }, TURNING_FILTER_GROUPS, (source, value) => filterTurningRecords({ ...data, records: [...source] }, value));
+    const matchesSpecial = specialFilterMatcher(filters.special, TURNING_SPECIAL_COLUMNS);
     const yearSet = new Set(years),
         machineSet = new Set(filters.machines),
         customerSet = new Set(filters.customers),
@@ -408,7 +416,7 @@ export function filterTurningRecords(
             (max === undefined || v <= max));
     return data.records.filter(
         (r) =>
-            yearSet.has(r.year) &&
+            matchesSpecial(r) && yearSet.has(r.year) &&
             r.month >= filters.from &&
             r.month <= filters.to &&
             (!machineSet.size || machineSet.has(r.machine)) &&
@@ -565,7 +573,9 @@ export function turningSaturation(
     filters: TurningFilters,
     settings: TurningSettings,
 ) {
-    const machines = filters.machines.length
+    const machines = filters.modes?.machines === "exclude"
+        ? [...new Set([...monitoredForYear(data, year), ...rows.map(r => r.machine)])].filter(machine => !filters.machines.includes(machine))
+        : filters.machines.length
         ? filters.machines
         : [
               ...new Set([
@@ -575,7 +585,7 @@ export function turningSaturation(
           ];
     const factor =
         settings.capacityBasis === "period"
-            ? (filters.to - filters.from + 1) / 12
+            ? (filters.modes?.period === "exclude" ? 12 - (filters.to - filters.from + 1) : filters.to - filters.from + 1) / 12
             : 1;
     let eight = 0,
         fourteen = 0,
@@ -616,6 +626,8 @@ export function turningTargetKey(filters: TurningFilters, year: number) {
         filters.maxPrice ?? null,
         filters.minQuantity ?? null,
         filters.maxQuantity ?? null,
+        filters.special || [],
+        Object.entries(filters.modes || {}).sort(([a], [b]) => a.localeCompare(b)),
     ]);
 }
 export function validateTurningSettings(input: unknown): TurningSettings {

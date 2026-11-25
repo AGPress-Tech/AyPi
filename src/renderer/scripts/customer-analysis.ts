@@ -1,3 +1,5 @@
+import { specialFilterEditor } from "../modules/analysis-special-filter-editor";
+import { CUSTOMER_SPECIAL_COLUMNS } from "../../main/modules/customer-analysis/model";
 import { analysisHtmlLegend } from "../modules/analysis-html-legend";
 import { enhanceDetailTable } from "../modules/analysis-detail-filters";
 import {
@@ -191,9 +193,12 @@ function updateBusy() {
     (input("export") as any).disabled = busy || !loaded;
     select("customerResults").disabled = busy;
 }
+const specialEditor = specialFilterEditor($("moreFilters").querySelector<HTMLElement>(".advanced-filter-popup")!, CUSTOMER_SPECIAL_COLUMNS, () => { if (readFilters()) applyFilters(); });
 function readFilters() {
     const candidate: CustomerFilters = {
         ...filters,
+        modes: {},
+        special: specialEditor.read(),
         kind: select("kind").value as CustomerFilters["kind"],
         from: input("from").value,
         to: input("to").value,
@@ -225,6 +230,8 @@ function readFilters() {
     }
 }
 function syncFilters() {
+    specialEditor.sync(filters.special);
+
     for (const key of ["unit", "currency"] as const)
         if (
             filters[key] &&
@@ -2062,7 +2069,7 @@ $("yearOptions").addEventListener("click", (event) => {
     const years = Array.from(
         $("yearOptions").querySelectorAll<HTMLInputElement>("input[data-year]"),
     ).map((el) => el.dataset.year!);
-    filters.years = button.dataset.years === "all" ? [] : years.slice(-2);
+    filters.years = button.dataset.years === "all" ? [] : years.slice(button.dataset.years === "last3" ? -3 : -2);
     syncFilters();
     applyFilters();
 });
@@ -2555,3 +2562,5 @@ installAnalysisLinks(
 );
 ipc.send("analysis-context-ready");
 void initialize();
+
+document.addEventListener("change", event => { if ((event.target as HTMLElement).matches("[data-filter-mode]") && loaded && readFilters()) applyFilters(); });

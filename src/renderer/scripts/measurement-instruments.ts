@@ -1,3 +1,6 @@
+import { SpecialFilter } from "../../main/modules/analysis-special-filters";
+import { recentAnalysisYears } from "../../main/modules/analysis-filter-modes";
+import { specialFilterEditor, matchesSpecialRow } from "../modules/analysis-special-filter-editor";
 import { rememberSuccessfulLogin } from "../modules/remembered-login";
 import {
     calibrationSystemForm,
@@ -64,6 +67,7 @@ type Rule = {
     to?: string;
 };
 type Filters = {
+    special?: SpecialFilter[];
     departments: string[];
     machines: string[];
     kind: string;
@@ -73,6 +77,7 @@ type Filters = {
     rules: Rule[];
 };
 const emptyFilters = (): Filters => ({
+    special: [],
     departments: [],
     machines: [],
     kind: "",
@@ -99,7 +104,7 @@ let snapshot: any = {
     },
     actor = "",
     view = "dashboard",
-    filters = emptyFilters(),
+    filters = { ...emptyFilters(), from: recentAnalysisYears()[0] + "-01-01", to: recentAnalysisYears()[2] + "-12-31" },
     preferences: any = {
         workspace: emptyWorkspace(),
         analysisWorkspace: emptyWorkspace(),
@@ -233,6 +238,7 @@ async function work(fn: () => Promise<any>) {
     }
 }
 function rowMatchesRules(r: any) {
+    if (!matchesSpecialRow(r, filters.special, customSpecialColumns())) return false;
     const by = new Map<string, Rule[]>();
     for (const rule of filters.rules) {
         if (!rule.value && !rule.to && rule.op !== "empty") continue;
@@ -1372,7 +1378,23 @@ function initWorkspace() {
         },
     });
 }
+let customSpecialEditor: ReturnType<typeof specialFilterEditor> | undefined;
+function customSpecialColumns() {
+    return [...new Map(([...instrumentColumns, ...calibrationColumns, ...systemColumns].map(c => ({ key: c.key, label: c.label, kind: c.type || "text" }))).map(c => [c.key, c])).values()];
+}
+function syncCustomSpecialFilters() {
+    if (!customSpecialEditor) {
+        const host = document.createElement("div");
+        $("addRule").after(host);
+        customSpecialEditor = specialFilterEditor(host, customSpecialColumns, () => {
+            filters.special = customSpecialEditor!.read();
+            render();
+        });
+    }
+    customSpecialEditor.sync(filters.special);
+}
 function render() {
+    syncCustomSpecialFilters();
     snapshot.schedule = schedule(
         snapshot.instruments,
         snapshot.calibrations,
@@ -1508,6 +1530,8 @@ function changeView(next: string) {
         ? JSON.parse(JSON.stringify(context.filters))
         : {
               ...emptyFilters(),
+              from: recentAnalysisYears()[0] + "-01-01",
+              to: recentAnalysisYears()[2] + "-12-31",
               departments: [...filters.departments],
               machines: [...filters.machines],
               kind: filters.kind,

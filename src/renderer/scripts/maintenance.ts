@@ -1,3 +1,6 @@
+import { SpecialFilter } from "../../main/modules/analysis-special-filters";
+import { recentAnalysisYears } from "../../main/modules/analysis-filter-modes";
+import { specialFilterEditor, matchesSpecialRow } from "../modules/analysis-special-filter-editor";
 import { rememberSuccessfulLogin } from "../modules/remembered-login";
 import { continueTableOnScroll } from "../modules/table-scroll-loader";
 import { analysisYearPicker } from "../modules/analysis-year-picker";
@@ -33,6 +36,7 @@ const date = (v: any) =>
     v ? String(v).slice(0, 10).split("-").reverse().join("/") : "—";
 type Rule = { field: string; op: string; value: string; to?: string };
 type Filters = {
+    special?: SpecialFilter[];
     departments: string[];
     machines: string[];
     kind: string;
@@ -42,6 +46,7 @@ type Filters = {
     rules: Rule[];
 };
 const emptyFilters = (): Filters => ({
+    special: [],
     departments: [],
     machines: [],
     kind: "",
@@ -61,7 +66,7 @@ let snapshot: any = {
     },
     actor = "",
     view = "dashboard",
-    filters = emptyFilters(),
+    filters = { ...emptyFilters(), from: recentAnalysisYears()[0] + "-01-01", to: recentAnalysisYears()[2] + "-12-31" },
     preferences: any = {
         workspace: emptyWorkspace(),
         filterPresets: [],
@@ -166,6 +171,7 @@ function enrich(row: any) {
     };
 }
 function matches(row: any, temporal = true) {
+    if (!matchesSpecialRow(row, filters.special, customSpecialColumns())) return false;
     const dept = row.department || "",
         id = row.machineId || row.id;
     if (
@@ -844,7 +850,23 @@ function renderCharts() {
     }
     workspace?.sync();
 }
+let customSpecialEditor: ReturnType<typeof specialFilterEditor> | undefined;
+function customSpecialColumns() {
+    return [...new Map((Object.values(fields).flat().map(([key, label, kind]) => ({ key, label, kind: kind || "text" }))).map(c => [c.key, c])).values()];
+}
+function syncCustomSpecialFilters() {
+    if (!customSpecialEditor) {
+        const host = document.createElement("div");
+        $("addRule").after(host);
+        customSpecialEditor = specialFilterEditor(host, customSpecialColumns, () => {
+            filters.special = customSpecialEditor!.read();
+            render();
+        });
+    }
+    customSpecialEditor.sync(filters.special);
+}
 function render() {
+    syncCustomSpecialFilters();
     const subset = records().filter(selected),
         ordinary = subset.filter((r) => r.kind === "ordinary").length;
     $("kpis").innerHTML = [

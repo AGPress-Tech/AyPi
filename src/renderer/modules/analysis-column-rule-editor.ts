@@ -1,12 +1,11 @@
 import { ColumnRule, FilterColumn, validateColumnRules } from "../../main/modules/analysis-column-rules";
-import { ruleMode, readRuleMode } from "./analysis-rule-mode";
 const esc = (v: unknown) => String(v ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!);
 export function columnRuleEditor(host: HTMLElement, columns: readonly FilterColumn[]) {
     function markup(c: FilterColumn, r: Partial<ColumnRule> = {}) {
         const numeric = c.kind === "number", date = c.kind === "date", op = r.op || (numeric || date ? "range" : "contains");
         const options = numeric || date ? [["range", "Da / a"], ["exact", "Uguale a"]] : [["exact", "Corrisponde a"], ["contains", "Contiene"], ["prefix", "Inizia con"], ["range", "Intervallo"]];
         const type = numeric ? 'number" step="any' : date ? "date" : "text";
-        return `<div class="rule"><div class="rule-fields">${ruleMode(r.exclude)}<select data-op aria-label="Confronto ${esc(c.label)}">${options.map(([v,l]) => `<option value="${v}" ${v === op ? "selected" : ""}>${l}</option>`).join("")}</select><div class="range"><input data-value type="${type}" value="${esc(r.value)}" aria-label="${esc(c.label)} da"><input data-to type="${type}" value="${esc(r.to)}" aria-label="${esc(c.label)} a" ${op === "range" ? "" : "hidden"}></div></div><button class="remove-rule" type="button" aria-label="Rimuovi condizione ${esc(c.label)}">×</button></div>`;
+        return `<div class="rule"><div class="rule-fields"><select data-op aria-label="Confronto ${esc(c.label)}">${options.map(([v,l]) => `<option value="${v}" ${v === op ? "selected" : ""}>${l}</option>`).join("")}</select><div class="range"><input data-value type="${type}" value="${esc(r.value)}" aria-label="${esc(c.label)} da"><input data-to type="${type}" value="${esc(r.to)}" aria-label="${esc(c.label)} a" ${op === "range" ? "" : "hidden"}></div></div><button class="remove-rule" type="button" aria-label="Rimuovi condizione ${esc(c.label)}">×</button></div>`;
     }
     function render(rules: readonly ColumnRule[]) {
         const open = new Map([...host.querySelectorAll<HTMLDetailsElement>("details[data-field]")].map(d => [d.dataset.field, d.open]));
@@ -25,7 +24,7 @@ export function columnRuleEditor(host: HTMLElement, columns: readonly FilterColu
         if (target.closest(".remove-rule")) {
             const row = target.closest<HTMLElement>(".rule")!;
             if (row.parentElement!.children.length > 1) row.remove();
-            else { row.querySelectorAll("input").forEach(i => i.value = ""); row.querySelector<HTMLSelectElement>("[data-rule-mode]")!.value = "include"; }
+            else { row.querySelectorAll("input").forEach(i => i.value = ""); }
         }
     });
     host.addEventListener("change", event => {
@@ -36,7 +35,7 @@ export function columnRuleEditor(host: HTMLElement, columns: readonly FilterColu
         const rules: ColumnRule[] = [];
         host.querySelectorAll<HTMLElement>("[data-field]").forEach(group => group.querySelectorAll<HTMLElement>(".rule").forEach(row => {
             const op = row.querySelector<HTMLSelectElement>("[data-op]")!.value as ColumnRule["op"], value = row.querySelector<HTMLInputElement>("[data-value]")!.value, to = op === "range" ? row.querySelector<HTMLInputElement>("[data-to]")!.value : "";
-            if (value || to) rules.push({ field: group.dataset.field!, op, value, ...(to ? { to } : {}), ...readRuleMode(row) });
+            if (value || to) rules.push({ field: group.dataset.field!, op, value, ...(to ? { to } : {}) });
         }));
         return validateColumnRules(rules, columns);
     }

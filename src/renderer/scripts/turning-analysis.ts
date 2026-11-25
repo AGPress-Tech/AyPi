@@ -1,3 +1,6 @@
+import { specialFilterEditor } from "../modules/analysis-special-filter-editor";
+import { TURNING_SPECIAL_COLUMNS } from "../../main/modules/turning-analysis/model";
+import { recentAnalysisYears } from "../../main/modules/analysis-filter-modes";
 import { continueTableOnScroll } from "../modules/table-scroll-loader";
 import {
     showTurningWorkbook,
@@ -343,15 +346,12 @@ function format(value: SortValue, kind: Kind) {
     if (kind === "percent") return pct(Number(value));
     return num(Number(value), kind === "integer" ? 0 : 2);
 }
+const specialEditor = specialFilterEditor($("advanced").querySelector<HTMLElement>(".picker-popup")!, TURNING_SPECIAL_COLUMNS, () => { const next = clone(filters); next.special = specialEditor.read(); commit(next); });
 function defaultFilters(): TurningFilters {
-    const year = data!.years[data!.years.length - 1],
-        last = Math.max(
-            ...data!.records.filter((r) => r.year === year).map((r) => r.month),
-        );
     return {
-        years: data!.years.slice(-3),
+        years: recentAnalysisYears(),
         from: 1,
-        to: last,
+        to: 12,
         machines: [],
         customers: [],
         articles: [],
@@ -469,6 +469,8 @@ function initPickers() {
     }
 }
 function syncFilters() {
+    specialEditor.sync(filters.special);
+
     if (!data) return;
     $("yearSummary").textContent = filters.years.join(" · ");
     $("yearSummary").title = filters.years.join(", ");
@@ -4027,6 +4029,14 @@ for (const id of ["fromMonth", "toMonth"]) {
         commit(next);
     });
 }
+document.addEventListener("aypi-filter-preset-capture", (event: any) => { event.detail.state = { version: 1, filters: clone(filters) }; });
+document.addEventListener("aypi-filter-preset-restore", (event: any) => { if (event.detail.state?.version === 1) { commit(event.detail.state.filters); event.detail.handled = true; } });
+document.addEventListener("change", event => {
+    if (!(event.target as HTMLElement).matches("[data-filter-mode]")) return;
+    const next = clone(filters);
+    next.modes = {};
+    commit(next);
+});
 document.querySelectorAll<HTMLElement>("[data-view]").forEach((button) =>
     button.addEventListener("click", () => {
         if (!data) return;

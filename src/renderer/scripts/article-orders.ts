@@ -1,3 +1,6 @@
+import { specialFilterEditor } from "../modules/analysis-special-filter-editor";
+import { ruleMode, readRuleMode } from "../modules/analysis-rule-mode";
+import { recentAnalysisYears } from "../../main/modules/analysis-filter-modes";
 import {
     ARTICLE_ORDER_COLUMNS,
     DEFAULT_ARTICLE_ORDER_COLUMNS,
@@ -19,6 +22,7 @@ const $ = <T extends HTMLElement = HTMLElement>(id: string) =>
 const IS_OFFERS = decodeURIComponent(location.pathname).endsWith(
     "article-offers.html",
 );
+const documentStatusFilters = document.querySelector<HTMLElement>(".filter-options");
 const CHANNEL = IS_OFFERS ? "article-offers" : "article-orders";
 const COLUMNS: readonly ArticleDocumentColumn[] = IS_OFFERS
     ? ARTICLE_OFFER_COLUMNS
@@ -52,7 +56,7 @@ const groups = [
         type: "text",
         placeholder: "Es. 1272AOA77",
         op: "exact",
-        required: true,
+        initiallyOpen: true,
     },
     {
         key: "customers",
@@ -97,6 +101,7 @@ const groups = [
         ? [{ key: "residuals", label: "Residuo da evadere", type: "number" }]
         : []),
 ];
+const specialEditor = specialFilterEditor($("searchForm"), COLUMNS, () => markDirty());
 let rows: any[] = [],
     total = 0,
     applied: any = null,
@@ -182,14 +187,11 @@ function updateBadges() {
                     row.querySelectorAll<HTMLInputElement>("input"),
                 ).some((input) => input.value.trim()),
         ).length;
-        group.querySelector(".badge")!.textContent = count
-            ? String(count)
-            : group.dataset.key === "articles"
-              ? "Articolo o documento"
-              : "Facoltativo";
+        group.querySelector(".badge")!.textContent = count ? String(count) : "Facoltativo";
     });
 }
-function initFilters() {
+function initFilters(useDefaultPeriod = true) {
+    specialEditor.sync();
     const openStates = new Map(
         [
             ...$("filterGroups").querySelectorAll<HTMLDetailsElement>(
@@ -204,11 +206,16 @@ function initFilters() {
         details.dataset.key = group.key;
         details.open = openStates.has(group.key)
             ? openStates.get(group.key)!
-            : !!group.required;
+            : !!group.initiallyOpen;
         details.innerHTML = `<summary>${group.label}<span class="badge"></span></summary><div class="rules"></div><button class="add-rule" type="button">+ ${group.type === "text" ? "Aggiungi alternativa" : "Aggiungi intervallo"}</button>`;
         $("filterGroups").appendChild(details);
         const container = details.querySelector<HTMLElement>(".rules")!;
         addRule(group, container);
+        if (useDefaultPeriod && group.key === (IS_OFFERS ? "offerDates" : "orderDates")) {
+            container.querySelector<HTMLInputElement>(".from")!.value = recentAnalysisYears()[0] + "-01-01";
+            container.querySelector<HTMLInputElement>(".to")!.value = recentAnalysisYears()[2] + "-12-31";
+            details.open = true;
+        }
         details
             .querySelector("button.add-rule")!
             .addEventListener("click", () => {
@@ -216,9 +223,10 @@ function initFilters() {
                 container.lastElementChild?.querySelector("input")?.focus();
             });
     }
+    if (documentStatusFilters) $("filterGroups").append(documentStatusFilters);
 }
 function collect() {
-    const filters: any = {};
+    const filters: any = { special: specialEditor.read() };
     for (const group of groups) {
         const container = document.querySelector(`[data-key="${group.key}"]`)!;
         filters[group.key] = Array.from(
@@ -243,12 +251,12 @@ function collect() {
                     throw new Error(
                         `Completa il filtro ${group.label.toLowerCase()}.`,
                     );
-                return [{ op, value, ...(op === "range" ? { to } : {}) }];
+                return [{ ...readRuleMode(row), op, value, ...(op === "range" ? { to } : {}) }];
             }
             const from = row.querySelector<HTMLInputElement>(".from")!,
                 to = row.querySelector<HTMLInputElement>(".to")!;
             if (!from.value && !to.value) return [];
-            const range: any = {};
+            const range: any = { ...readRuleMode(row) };
             for (const [key, input] of [
                 ["from", from],
                 ["to", to],
@@ -270,16 +278,8 @@ function collect() {
             return [range];
         });
     }
-    if (
-        !filters.articles.length &&
-        !filters[IS_OFFERS ? "offers" : "orders"].some(
-            (r: any) => r.op === "exact",
-        )
-    )
-        throw new Error(
-            "Inserisci un articolo oppure il numero esatto del documento.",
-        );
     if (!IS_OFFERS) {
+        filters.excludeFields = Object.keys({});
         filters.delivered = $<HTMLSelectElement>("delivered").value;
         filters.includeCancelled =
             $<HTMLInputElement>("includeCancelled").checked;
@@ -512,7 +512,8 @@ $("reset").addEventListener("click", () => {
     rows = [];
     total = 0;
     applied = null;
-    initFilters();
+    initFilters(false);
+
     if (!IS_OFFERS) {
         $<HTMLSelectElement>("delivered").value = "all";
         $<HTMLInputElement>("includeCancelled").checked = false;
@@ -520,7 +521,7 @@ $("reset").addEventListener("click", () => {
     $("empty").innerHTML = INITIAL_EMPTY;
     renderTable();
     syncButtons();
-    setStatus("Filtri azzerati. Inserisci un articolo per iniziare.");
+    setStatus("Filtri azzerati. Premi Cerca per visualizzare i risultati.");
     document
         .querySelector<HTMLInputElement>('[data-key="articles"] .value')
         ?.focus();
@@ -555,6 +556,34 @@ document.addEventListener("keydown", (event) => {
 document.addEventListener("click", (event) => {
     if (!$("columns").contains(event.target as Node))
         $<HTMLDetailsElement>("columns").open = false;
+});
+$("searchForm").addEventListener("aypi-filter-preset-capture", (event: any) => {
+    event.detail.state = { version: 1, special: specialEditor.read(), modes: {}, groups: groups.map(group => ({ key: group.key, rows: [...document.querySelectorAll<HTMLElement>(`[data-key="${group.key}"] .rule`)].map(row => [...row.querySelectorAll<HTMLInputElement | HTMLSelectElement>("input,select")].map(field => field.value)) })), delivered: $("delivered") ? $<HTMLSelectElement>("delivered").value : undefined, includeCancelled: $("includeCancelled") ? $<HTMLInputElement>("includeCancelled").checked : undefined };
+});
+$("searchForm").addEventListener("aypi-filter-preset-restore", (event: any) => {
+    const state = event.detail.state;
+    if (state?.version !== 1 || !Array.isArray(state.groups)) return;
+    initFilters();
+
+    specialEditor.sync(state.special);
+    for (const saved of state.groups) {
+        const group = groups.find(g => g.key === saved.key);
+        if (!group || !Array.isArray(saved.rows) || saved.rows.length > 20) continue;
+        const detail = document.querySelector<HTMLDetailsElement>(`[data-key="${group.key}"]`)!;
+        const container = detail.querySelector<HTMLElement>(".rules")!;
+        container.replaceChildren();
+        for (const values of saved.rows) {
+            if (!Array.isArray(values)) continue;
+            addRule(group, container);
+            const row = container.lastElementChild!;
+            row.querySelectorAll<HTMLInputElement | HTMLSelectElement>("input,select").forEach((field, index) => field.value = String(values[index] ?? ""));
+            row.querySelector(".operator")?.dispatchEvent(new Event("change"));
+        }
+        if (!container.children.length) addRule(group, container);
+        detail.open = saved.rows.some((values: string[]) => values.slice(2).some(Boolean));
+    }
+    if (!IS_OFFERS) { $<HTMLSelectElement>("delivered").value = state.delivered || "all"; $<HTMLInputElement>("includeCancelled").checked = state.includeCancelled === true; }
+    updateBadges(); markDirty(); event.detail.handled = true;
 });
 initFilters();
 renderColumns();

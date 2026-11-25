@@ -1,9 +1,11 @@
+import { SqlSpecialFilter, validateSqlSpecialFilters, specialFilterSql } from "./special-filters";
 type TextRule = {
+    exclude?: boolean;
     op: "exact" | "contains" | "prefix" | "range";
     value: string;
     to?: string;
 };
-type Range = { from?: number | string; to?: number | string };
+type Range = { exclude?: boolean; from?: number | string; to?: number | string };
 export type DocumentSort = { key: string; direction: "asc" | "desc" };
 export const ORDER_SORT_COLUMNS = [
     "article",
@@ -50,6 +52,8 @@ export function validateDocumentSort(
     });
 }
 export type ArticleOrderFilters = {
+    special?: SqlSpecialFilter[];
+    excludeFields?: string[];
     articles: TextRule[];
     customers?: TextRule[];
     orders?: TextRule[];
@@ -71,6 +75,7 @@ const dateKeys = ["orderDates", "deliveryDates"];
 const numberKeys = ["quantities", "prices", "residuals"];
 export function validateArticleOrderFilters(
     input: unknown,
+    specialColumns: readonly string[] = ORDER_SORT_COLUMNS,
 ): ArticleOrderFilters {
     if (!input || typeof input !== "object" || Array.isArray(input))
         throw new Error("Filtri non validi.");
@@ -83,6 +88,8 @@ export function validateArticleOrderFilters(
                     ...dateKeys,
                     ...numberKeys,
                     "delivered",
+                    "excludeFields",
+                    "special",
                     "includeCancelled",
                     "offset",
                     "limit",
@@ -92,7 +99,9 @@ export function validateArticleOrderFilters(
         )
     )
         throw new Error("Filtro non previsto.");
-    const clean: any = {};
+    if (value.excludeFields !== undefined && (!Array.isArray(value.excludeFields) || value.excludeFields.some((key: unknown) => !["delivered", "cancelled"].includes(String(key))))) throw Error("Modalità filtro non valida.");
+    const clean: any = value.excludeFields ? { excludeFields: [...new Set(value.excludeFields)] } : {};
+    if (value.special !== undefined) clean.special = validateSqlSpecialFilters(value.special, specialColumns);
     for (const key of [...textKeys, ...dateKeys, ...numberKeys]) {
         const rules = value[key] ?? [];
         if (!Array.isArray(rules) || rules.length > 20)
@@ -100,10 +109,12 @@ export function validateArticleOrderFilters(
         clean[key] = rules.map((rule) => {
             if (!rule || typeof rule !== "object" || Array.isArray(rule))
                 throw new Error("Condizione non valida.");
+            if (rule.exclude !== undefined && typeof rule.exclude !== "boolean")
+                throw Error("Modalità filtro non valida.");
             if (textKeys.includes(key)) {
                 if (
                     Object.keys(rule).some(
-                        (k) => !["op", "value", "to"].includes(k),
+                        (k) => !["op", "value", "to", "exclude"].includes(k),
                     ) ||
                     !["exact", "contains", "prefix", "range"].includes(
                         rule.op,
@@ -121,17 +132,18 @@ export function validateArticleOrderFilters(
                 )
                     throw new Error("Completare l’intervallo di codici.");
                 return {
+                    ...(rule.exclude ? { exclude: true } : {}),
                     op: rule.op,
                     value: rule.value.trim(),
                     ...(rule.op === "range" ? { to: rule.to.trim() } : {}),
                 };
             }
             if (
-                Object.keys(rule).some((k) => !["from", "to"].includes(k)) ||
+                Object.keys(rule).some((k) => !["from", "to", "exclude"].includes(k)) ||
                 (rule.from === undefined && rule.to === undefined)
             )
                 throw new Error("Completare l’intervallo.");
-            const result: any = {};
+            const result: any = rule.exclude ? { exclude: true } : {};
             for (const edge of ["from", "to"])
                 if (rule[edge] !== undefined) {
                     const val = rule[edge];
@@ -175,14 +187,6 @@ export function validateArticleOrderFilters(
             throw Error("Identificativo documento non valido.");
         clean.documentId = value.documentId;
     }
-    if (
-        !clean.articles.length &&
-        !clean.orders.some((r: any) => r.op === "exact") &&
-        !clean.documentId
-    )
-        throw new Error(
-            "Inserire un articolo oppure il numero esatto del documento.",
-        );
     if (
         value.delivered !== undefined &&
         !["all", "yes", "no"].includes(value.delivered)
@@ -242,10 +246,10 @@ export function buildArticleOrderQuery(input: unknown) {
         },
         dates: dateKeys,
         conditions: [
-            ...(!filters.includeCancelled ? ["cancelled=0"] : []),
+            ...(filters.excludeFields?.includes("cancelled") ? [filters.includeCancelled ? "0=1" : "cancelled=1"] : !filters.includeCancelled ? ["cancelled=0"] : []),
             ...(filters.delivered !== "all"
-                ? [`delivered=${filters.delivered === "yes" ? 1 : 0}`]
-                : []),
+                ? [`delivered=${(filters.delivered === "yes") !== !!filters.excludeFields?.includes("delivered") ? 1 : 0}`]
+                : filters.excludeFields?.includes("delivered") ? ["0=1"] : []),
         ],
         order: "article,orderDate DESC,orderId DESC,line",
         sortable: ORDER_SORT_COLUMNS,
@@ -277,71 +281,35 @@ export function buildArticleDocumentQuery(
         return "@" + name;
     };
     const conditions: string[] = [];
-    const columns = definition.text;
-    for (const key of Object.keys(columns)) {
+    const combine = <T extends { exclude?: boolean }>(rules: T[], render: (r: T) => string) => {
+        const include: string[] = [], exclude: string[] = [];
+        for (const rule of rules) {
+            const predicate = render(rule);
+            if (rule.exclude) exclude.push(`CASE WHEN ${predicate} THEN 1 ELSE 0 END=0`);
+            else include.push(predicate);
+        }
+        return [include.length ? "(" + include.join(" OR ") + ")" : "1=1", ...exclude].join(" AND ");
+    };
+    for (const [key, columns] of Object.entries(definition.text)) {
         const rules = filters[key] as TextRule[];
-        if (rules.length)
-            conditions.push(
-                "(" +
-                    rules
-                        .map((rule) => {
-                            const escaped = rule.value.replace(
-                                /[\[\]%_\\]/g,
-                                "\\$&",
-                            );
-                            const first = bind(
-                                rule.op === "contains"
-                                    ? `%${escaped}%`
-                                    : rule.op === "prefix"
-                                      ? `${escaped}%`
-                                      : rule.value,
-                                "text",
-                            );
-                            const last =
-                                rule.op === "range"
-                                    ? bind(rule.to, "text")
-                                    : null;
-                            return (
-                                "(" +
-                                columns[key]
-                                    .map((col) =>
-                                        rule.op === "range"
-                                            ? `${col} BETWEEN ${first} AND ${last}`
-                                            : rule.op === "exact"
-                                              ? `${col}=${first}`
-                                              : `${col} LIKE ${first} ESCAPE '\\'`,
-                                    )
-                                    .join(" OR ") +
-                                ")"
-                            );
-                        })
-                        .join(" OR ") +
-                    ")",
-            );
+        if (rules.length) conditions.push("(" + combine(rules, rule => {
+            const escaped = rule.value.replace(/[\[\]%_\\]/g, "\\$&");
+            const first = bind(rule.op === "contains" ? `%${escaped}%` : rule.op === "prefix" ? `${escaped}%` : rule.value, "text");
+            const last = rule.op === "range" ? bind(rule.to, "text") : null;
+            return "(" + columns.map(col => rule.op === "range" ? `${col} BETWEEN ${first} AND ${last}` : rule.op === "exact" ? `${col}=${first}` : `${col} LIKE ${first} ESCAPE '\\'`).join(" OR ") + ")";
+        }) + ")");
     }
-    const ranges = definition.ranges;
-    for (const [key, col] of Object.entries(ranges)) {
+    for (const [key, col] of Object.entries(definition.ranges)) {
         const rules = filters[key] as Range[];
-        if (rules.length)
-            conditions.push(
-                "(" +
-                    rules
-                        .map((rule) => {
-                            const edges = [];
-                            if (rule.from !== undefined)
-                                edges.push(
-                                    `${col}>=${bind(rule.from, definition.dates.includes(key) ? "date" : "number")}`,
-                                );
-                            if (rule.to !== undefined)
-                                edges.push(
-                                    `${col}<=${bind(rule.to, definition.dates.includes(key) ? "date" : "number")}`,
-                                );
-                            return "(" + edges.join(" AND ") + ")";
-                        })
-                        .join(" OR ") +
-                    ")",
-            );
+        if (rules.length) conditions.push("(" + combine(rules, rule => {
+            const edges: string[] = [];
+            const type = definition.dates.includes(key) ? "date" : "number";
+            if (rule.from !== undefined) edges.push(`${col}>=${bind(rule.from, type)}`);
+            if (rule.to !== undefined) edges.push(`${col}<=${bind(rule.to, type)}`);
+            return "(" + edges.join(" AND ") + ")";
+        }) + ")");
     }
+    conditions.push(...specialFilterSql(filters.special, definition.sortable, bind));
     conditions.push(...definition.conditions);
     if (filters.documentId !== undefined) {
         if (!definition.idColumn)
@@ -367,6 +335,6 @@ export function buildArticleDocumentQuery(
         filters,
         bindings,
         sql: `WITH Orders AS (${definition.source}) SELECT *,COUNT_BIG(*) OVER() AS totalRows FROM Orders
- WHERE ${conditions.join(" AND ")} ORDER BY ${order} OFFSET ${offset} ROWS FETCH NEXT ${limit} ROWS ONLY`,
+ WHERE ${conditions.length ? conditions.join(" AND ") : "1=1"} ORDER BY ${order} OFFSET ${offset} ROWS FETCH NEXT ${limit} ROWS ONLY`,
     };
 }

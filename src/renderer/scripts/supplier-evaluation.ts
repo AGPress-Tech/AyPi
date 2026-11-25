@@ -1,3 +1,6 @@
+import { SpecialFilter } from "../../main/modules/analysis-special-filters";
+import { recentAnalysisYears } from "../../main/modules/analysis-filter-modes";
+import { specialFilterEditor, matchesSpecialRow } from "../modules/analysis-special-filter-editor";
 import { rememberSuccessfulLogin } from "../modules/remembered-login";
 import Chart from "chart.js/auto";
 import type { AnalysisContext } from "../../main/modules/analysis-navigation-model";
@@ -70,6 +73,7 @@ const names = {
 };
 type Rule = { field: string; op: string; value: string; to?: string };
 type Filters = {
+    special?: SpecialFilter[];
     suppliers: string[];
     level: string;
     from: string;
@@ -86,6 +90,7 @@ type Filters = {
     rules: Rule[];
 };
 const emptyFilters = (): Filters => ({
+    special: [],
     suppliers: [],
     level: "",
     from: "",
@@ -110,7 +115,7 @@ let snapshot: any = {
     settings: SupplierSettings,
     view = "dashboard",
     actor = "",
-    filters = emptyFilters(),
+    filters = { ...emptyFilters(), from: recentAnalysisYears()[0] + "-01-01", to: recentAnalysisYears()[2] + "-12-31" },
     sort: SortCriterion[] = [{ key: "date", direction: "desc" }],
     limit = 250;
 const emptySelection = (): Record<string, string[]> => ({
@@ -317,6 +322,7 @@ function manualRows() {
         .map(rowRecord)
         .filter(
             (r) =>
+                matchesSpecialRow(r, filters.special, customSpecialColumns()) &&
                 (isSupplierAnalysis()
                     ? r.analysisSupplierId === analysisSupplierId
                     : groupSelected(filters.suppliers, r.analysisSupplierId)) &&
@@ -895,7 +901,23 @@ function renderTable() {
         )
         .join("");
 }
+let customSpecialEditor: ReturnType<typeof specialFilterEditor> | undefined;
+function customSpecialColumns() {
+    return [...new Map((recordColumns.map(c => ({ key: c.key, label: c.label, kind: c.type || "text" }))).map(c => [c.key, c])).values()];
+}
+function syncCustomSpecialFilters() {
+    if (!customSpecialEditor) {
+        const host = document.createElement("div");
+        $("addRule").after(host);
+        customSpecialEditor = specialFilterEditor(host, customSpecialColumns, () => {
+            filters.special = customSpecialEditor!.read();
+            render();
+        });
+    }
+    customSpecialEditor.sync(filters.special);
+}
 function render() {
+    syncCustomSpecialFilters();
     if (!settings) return;
     for (const [id, section] of Object.entries({
         dashboard: "dashboard",
@@ -1041,7 +1063,9 @@ function hydrateFilters(value: any) {
     const result = emptyFilters();
     if (!value || typeof value !== "object") return result;
     for (const key of Object.keys(result)) {
-        if (key === "rules") {
+        if (key === "special") {
+            result.special = Array.isArray(value.special) ? value.special : [];
+        } else if (key === "rules") {
             result.rules = Array.isArray(value.rules)
                 ? value.rules
                       .filter(

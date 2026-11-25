@@ -1,3 +1,5 @@
+import { SpecialFilter, validateSpecialFilters, specialFilterMatcher } from "../analysis-special-filters";
+import { matchesFilter, matchesAlternatives, exclusion } from "../analysis-filter-modes";
 import { sortByCriteria, SortCriterion } from "../analysis-sorting";
 export type Row = Record<string, string | number | null>;
 export const COLUMNS: {
@@ -169,6 +171,7 @@ export function summarize(
     });
 }
 export type Rule = {
+    exclude?: boolean;
     field: string;
     op: "contains" | "exact" | "prefix" | "range";
     value: string;
@@ -341,6 +344,8 @@ export function summarizeSuppliers(
 }
 export type ContractScope = "open" | "all" | "closed" | "expired";
 export type Search = {
+    special?: SpecialFilter[];
+    scopeExclude?: boolean;
     scope: ContractScope | ContractScope[];
     rules: Rule[];
     sort: SortCriterion[];
@@ -401,6 +406,7 @@ export function validateSearch(v: any): Search {
                 throw Error("Intervallo invertito.");
         }
         return {
+            ...exclusion(r.exclude),
             field: r.field,
             op: r.op,
             value: r.value.trim(),
@@ -416,6 +422,8 @@ export function validateSearch(v: any): Search {
         return { key: s.key, direction: s.direction };
     });
     return {
+        ...(v.scopeExclude === undefined ? {} : { scopeExclude: !!exclusion(v.scopeExclude).exclude }),
+        ...(v.special === undefined ? {} : { special: validateSpecialFilters(v.special, COLUMNS) }),
         scope: scopes.includes("all")
             ? ["all"]
             : ([...new Set(scopes)] as ContractScope[]),
@@ -430,20 +438,22 @@ export function filterRows(rows: Row[], input: Search) {
         if (!r.value && !r.to) continue;
         groups.set(r.field, [...(groups.get(r.field) || []), r]);
     }
+    const matchesSpecial = specialFilterMatcher(s.special, COLUMNS);
     const normalize = (v: unknown) => String(v ?? "").toLocaleLowerCase("it");
     return sortByCriteria(
         rows.filter(
             (row) =>
-                (s.scope as ContractScope[]).some(
+                matchesSpecial({ ...row, item: [row.item, ...JSON.parse(String(row.relatedArticles || "[]"))] }) &&
+                matchesFilter(s.scopeExclude ? "exclude" : undefined, true, (s.scope as ContractScope[]).some(
                     (scope) =>
                         scope === "all" ||
                         (scope === "expired"
                             ? Number(row.expired) === 1
                             : Number(row.active) ===
                               (scope === "open" ? 1 : 0)),
-                ) &&
+                )) &&
                 [...groups].every(([field, rules]) =>
-                    rules.some((r) =>
+                    matchesAlternatives(rules, (r) =>
                         (field === "item"
                             ? [
                                   row.item,

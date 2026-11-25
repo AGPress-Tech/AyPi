@@ -40,6 +40,10 @@
     padding: 4px 16px 12px
 }
 
+.stock-window .rule .range:has([data-to][hidden]) {
+    grid-template-columns: minmax(0, 1fr);
+}
+
 .stock-field {
     display: grid;
     gap: 5px;

@@ -1,3 +1,6 @@
+import { specialFilterEditor } from "../modules/analysis-special-filter-editor";
+import { recentAnalysisYears } from "../../main/modules/analysis-filter-modes";
+import { ruleMode, readRuleMode } from "../modules/analysis-rule-mode";
 import { continueTableOnScroll } from "../modules/table-scroll-loader";
 import { bindSortingHeaders, updateSortingBar } from "../modules/table-sorting";
 import { installAnalysisLinks } from "../modules/analysis-links";
@@ -39,12 +42,13 @@ const num = (v: unknown, d = 3) =>
     new Intl.NumberFormat("it-IT", { maximumFractionDigits: d }).format(
         Number(v),
     );
+const initialSearch = (): ReturnType<typeof emptySearch> => ({ ...emptySearch(), rules: [{ field: "date", op: "range" as const, value: recentAnalysisYears()[0] + "-01-01", to: recentAnalysisYears()[2] + "-12-31" }] });
 let contracts: Row[] = [],
     orders: Row[] = [],
     rows: Row[] = [],
     filtered: Row[] = [],
     loaded = false,
-    search = emptySearch(),
+    search = initialSearch(),
     queriedAt = "";
 let preferences: Preferences = {
     version: 1,
@@ -55,6 +59,7 @@ const setStatus = (text = "", error = false) => {
     $("status").textContent = text;
     $("status").classList.toggle("error", error);
 };
+const specialEditor = specialFilterEditor($("searchForm"), COLUMNS, () => { try { search = readSearch(); render(); } catch (error) { report(error); } });
 function fieldInput(col: (typeof COLUMNS)[number], rule: any) {
     const numeric = col.kind === "number",
         date = col.kind === "date",
@@ -105,6 +110,7 @@ function renderScope() {
     $("scopeSelection").textContent = scopeText();
 }
 function renderFilters() {
+    specialEditor.sync(search.special);
     const openStates = new Map(
         [
             ...$("filterGroups").querySelectorAll<HTMLDetailsElement>(
@@ -138,6 +144,7 @@ function readSearch() {
                         )!.value;
                 if (value || (op === "range" && to))
                     rules.push({
+                        ...readRuleMode(rule),
                         field: group.dataset.field,
                         op,
                         value,
@@ -147,6 +154,8 @@ function readSearch() {
         );
     return validateSearch({
         ...search,
+        special: specialEditor.read(),
+        scopeExclude: false,
         scope: [
             ...$("scope").querySelectorAll<HTMLInputElement>("input:checked"),
         ].map((input) => input.value),
@@ -694,7 +703,7 @@ $("scope").onchange = (event) => {
     }
 };
 $("reset").onclick = () => {
-    search = emptySearch();
+    search = initialSearch();
     renderFilters();
     render();
     setStatus();

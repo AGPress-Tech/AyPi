@@ -1,3 +1,7 @@
+import { SpecialFilter, validateSpecialFilters, specialFilterMatcher } from "../analysis-special-filters";
+export const CUSTOMER_SPECIAL_COLUMNS = [{"key": "article", "label": "Articolo", "kind": "text"}, {"key": "description", "label": "Descrizione", "kind": "text"}, {"key": "documentNo", "label": "Numero documento", "kind": "text"}, {"key": "kind", "label": "Tipo documento", "kind": "text"}, {"key": "documentDate", "label": "Data documento", "kind": "date"}, {"key": "deliveryDate", "label": "Consegna prevista", "kind": "date"}, {"key": "unit", "label": "Unit? di misura", "kind": "text"}, {"key": "currency", "label": "Valuta", "kind": "text"}, {"key": "quantity", "label": "Quantit?", "kind": "number"}, {"key": "deliveredQuantity", "label": "Quantit? consegnata", "kind": "number"}, {"key": "residual", "label": "Residuo", "kind": "number"}, {"key": "unitPrice", "label": "Prezzo unitario", "kind": "number"}, {"key": "netPrice", "label": "Prezzo netto", "kind": "number"}, {"key": "netAmount", "label": "Imponibile", "kind": "number"}, {"key": "cancelled", "label": "Annullato", "kind": "boolean"}, {"key": "delivered", "label": "Consegnato", "kind": "boolean"}];
+export const CUSTOMER_FILTER_GROUPS = {"kind": ["kind"], "period": ["from", "to"], "delivery": ["deliveryFrom", "deliveryTo"], "years": ["years"], "article": ["article", "articleExact"], "search": ["search"], "status": ["status"], "unit": ["unit"], "currency": ["currency"], "quantity": ["minQuantity", "maxQuantity"], "price": ["minPrice", "maxPrice"], "residual": ["minResidual", "maxResidual"]};
+import { FilterModes, filterWithModes, validateFilterModes, recentAnalysisYears } from "../analysis-filter-modes";
 import {
     articleOrders,
     firstArticleDates,
@@ -114,6 +118,8 @@ export const STATUS_LABELS = {
     overdue: "Consegna scaduta",
 };
 export type CustomerFilters = {
+    special?: SpecialFilter[];
+    modes?: FilterModes;
     selection?: CustomerSelection;
     kind: "all" | DocumentKind;
     from: string;
@@ -143,7 +149,7 @@ export const defaultCustomerFilters = (): CustomerFilters => ({
     to: "",
     deliveryFrom: "",
     deliveryTo: "",
-    years: [],
+    years: recentAnalysisYears().map(String),
     article: "",
     articleExact: false,
     search: "",
@@ -241,13 +247,16 @@ export function filterCustomerRows(
     f: CustomerFilters,
     today: string,
 ) {
+    if (f.modes && Object.keys(f.modes).length) return filterWithModes(rows, f, { ...defaultCustomerFilters(), years: [], includeCancelled: true }, CUSTOMER_FILTER_GROUPS, (source, value) => filterCustomerRows(source, value, today));
     const search = f.search.toLocaleLowerCase("it"),
         article = f.article.toLocaleLowerCase("it");
     const selection = f.selection ?? emptyCustomerSelection();
     const inactivity = selection.inactivity.length
         ? articleInactivity(rows, today)
         : new Map<string, string>();
+    const matchesSpecial = specialFilterMatcher(f.special, CUSTOMER_SPECIAL_COLUMNS);
     return rows.filter((r) => {
+        if (!matchesSpecial({ ...r, kind: r.kind === "offer" ? "Offerta" : "Ordine" })) return false;
         if (f.kind !== "all" && r.kind !== f.kind) return false;
         if (
             f.status !== "cancelled" &&
@@ -1134,6 +1143,8 @@ export function validateCustomerFilters(input: any): CustomerFilters {
         throw Error("Intervallo residui non valido.");
     return {
         ...f,
+        ...(input.modes === undefined ? {} : { modes: validateFilterModes(input.modes, Object.keys(CUSTOMER_FILTER_GROUPS)) }),
+        ...(input.special === undefined ? {} : { special: validateSpecialFilters(input.special, CUSTOMER_SPECIAL_COLUMNS) }),
         kind: input.kind,
         status: input.status,
         years: [...new Set(input.years)] as string[],

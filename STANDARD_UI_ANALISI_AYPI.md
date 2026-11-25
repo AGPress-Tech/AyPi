@@ -1,10 +1,29 @@
 # Standard UI dei moduli di analisi AyPi
 
-## Ambito delle modifiche ai filtri (25 novembre 2026)
+## Condizioni personalizzate senza cambio layout (25 novembre 2026, dopo punto 0)
 
-**Regola attuale:** il bootstrap dei filtri si applica esclusivamente a `stock-analysis.html`. Tutti gli altri moduli, compresi MES, Pianificatore e le rispettive analisi, mantengono disposizione, controlli e preset nativi. Non usare un elenco di eccezioni: nessuna pagina diversa dalle Giacenze viene trasformata.
+Il bootstrap resta limitato alle Giacenze. Nessun filtro viene spostato, nessun pannello laterale viene aggiunto agli altri moduli e nessun filtro viene introdotto nei login o nei moduli operativi Calendario, Acquisti, Ticket, MES o Pianificatore. Le rispettive pagine di analisi sono distinte dalle pagine operative.
 
-Su richiesta dell'utente sono annullate le nuove modifiche trasversali ai filtri: esclusioni, filtri speciali E/O, nuovi preset e periodo iniziale di tre anni. Gli altri moduli conservano le condizioni, i preset e i periodi precedenti. L'unico adattamento mantenuto riguarda **Giacenze**, con sezioni per campo come Offerte, alternative, condizioni speciali, inclusioni/esclusioni e preset. I relativi helper condivisi sono usati soltanto dalle Giacenze.
+Nei filtri esistenti di Torneria, Cliente, Venduto/Offerte, BoM, Contratti, Manutenzioni, Strumenti/Tarature, Utensili, Fornitori e Analisi calendario il periodo iniziale usa anno corrente e due precedenti. Non sostituire gli anni correnti con anni storici presenti nei dati. Le date si riferiscono agli eventi del modulo, non alle anagrafiche. I preset e le scelte esplicite possono sostituire il periodo.
+
+Il comando compatto **+ Filtro speciale** viene aggiunto nei filtri esistenti, nelle sezioni personalizzate già presenti per Manutenzioni, Tarature, Utensili e Fornitori. Il dialogo conserva nome, gruppi E/O e sottogruppi, confronti negativi ed esclusione dell'intero composto. Applica conferma, Annulla/Escape scarta la bozza. I preset nativi conservano i composti; non viene introdotto un nuovo sistema di preset o un nuovo pannello. Il backend valida ed esegue i filtri ERP prima di conteggio, ordinamento e append.
+
+Nei moduli con barra filtri orizzontale il comando **+ Filtro speciale** rimane nel menu avanzato inizialmente chiuso: **Altri filtri e anni** in Analisi cliente, **Altri filtri** in Torneria e le sezioni avanzate/personalizzate già esistenti negli altri moduli. Non mostrarlo come riga aggiuntiva nella barra principale. Nei pannelli filtro laterali (Giacenze, Ordini/Offerte, BoM, Contratti e Analisi calendario) conservare la posizione attuale.
+
+**Esclusione richiesta:** Analisi MES e Analisi Pianificatore sono ripristinate integralmente al commit del punto 0, comprese pagina, script, periodi iniziali, condizioni e backend MES. Non aggiungere a queste due analisi il periodo di tre anni o i filtri speciali. Restano esclusi anche i rispettivi moduli operativi.
+
+**Ordini e Offerte:** tutti i criteri sono facoltativi, anche nel backend. È consentita la ricerca senza articolo o numero documento e con tutti i campi vuoti. Il periodo iniziale rimane di tre anni; Azzera svuota anche le date, consentendo di consultare tutto lo storico. Restano i filtri di stato espliciti, il caricamento progressivo e la validazione dei valori compilati.
+
+Nelle Giacenze sono rimossi i selettori **Mantieni selezionati / Escludi selezionati** dai campi ordinari e rapidi. Il campo singolo occupa l'intera larghezza; due colonne vengono usate soltanto per un intervallo Da/A. Le esclusioni restano definibili nel filtro speciale. La memoria login, le correzioni backend e la sospensione dei backup non cambiano.
+
+**Eccezione Giacenze:** all'apertura selezionare soltanto l'ultimo esercizio disponibile e il relativo ultimo periodo, come il comando Ultimo. Non estendere automaticamente la selezione ai tre anni e non sommare saldi di periodi successivi. Gli altri moduli mantengono il proprio periodo iniziale di tre anni; nelle Giacenze restano disponibili selezioni manuali multiple e preset.
+
+
+## Punto 0 dei filtri (25 novembre 2026, prima della ripresa)
+
+**Regola al punto 0:** il bootstrap dei filtri si applica esclusivamente a `stock-analysis.html`. Tutti gli altri moduli, compresi MES, Pianificatore e le rispettive analisi, mantengono disposizione, controlli e preset nativi. Non usare un elenco di eccezioni: nessuna pagina diversa dalle Giacenze viene trasformata.
+
+Al punto 0 sono state annullate le modifiche trasversali ai filtri (superate soltanto dove indicato nella sezione successiva alla ripresa): esclusioni, filtri speciali E/O, nuovi preset e periodo iniziale di tre anni. Gli altri moduli conservano le condizioni, i preset e i periodi precedenti. L'unico adattamento mantenuto riguarda **Giacenze**, con sezioni per campo come Offerte, alternative, condizioni speciali, inclusioni/esclusioni e preset. I relativi helper condivisi sono usati soltanto dalle Giacenze.
 
 Calendario operativo, Gestione acquisti (catalogo, liste e interventi) e Ticket Support (dipendente e admin) mantengono i propri filtri nativi, senza pannelli laterali o preset iniettati dal bootstrap delle analisi. Analisi calendario resta distinta dal Calendario operativo.
 

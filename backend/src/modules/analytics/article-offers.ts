@@ -21,6 +21,7 @@ export const OFFER_SORT_COLUMNS = [
 ];
 export type ArticleOfferFilters = Pick<
     ArticleOrderFilters,
+    | "special"
     | "articles"
     | "customers"
     | "units"
@@ -45,6 +46,7 @@ export function validateArticleOfferFilters(
             (k) =>
                 ![
                     "articles",
+                    "special",
                     "customers",
                     "offers",
                     "offerDates",
@@ -70,7 +72,9 @@ export function validateArticleOfferFilters(
         offset,
         limit,
         documentId,
+        special,
     } = validateArticleOrderFilters({
+        special: value.special,
         articles: value.articles,
         customers: value.customers,
         orders: value.offers,
@@ -81,8 +85,9 @@ export function validateArticleOfferFilters(
         offset: value.offset,
         limit: value.limit,
         documentId: value.documentId,
-    });
+    }, OFFER_SORT_COLUMNS);
     return {
+        ...(special === undefined ? {} : { special }),
         articles,
         customers,
         offers: orders,
