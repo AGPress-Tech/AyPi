@@ -224,6 +224,10 @@ p {
     gap: 6px;
 }
 
+.rule .range:has(input[type=date]) {
+    grid-template-columns: minmax(0, 1fr);
+}
+
 .rule label {
     display: flex;
     flex-direction: column;
@@ -337,6 +341,13 @@ input[type=checkbox] {
 
 .results-panel {
     flex: 1;
+    container-type: inline-size;
+}
+
+.document-links-row .analysis-document-content {
+    position: sticky;
+    left: 16px;
+    width: calc(100cqw - 32px);
 }
 
 /* Keep column menus above sticky headers, including nested contract/order tables. */
@@ -459,7 +470,7 @@ th:first-child {
     z-index: 4;
 }
 
-tr:hover td {
+tr:hover>td {
     background: var(--ops-soft, #fffaf0);
 }
 
@@ -468,6 +479,8 @@ tr:hover td {
     font-size: 12px;
     padding: 7px 12px;
     color: var(--ops-muted, #7d7566);
+    border-top: 6px solid var(--ops-surface, #fff);
+    font-weight: 650;
 }
 
 .state {

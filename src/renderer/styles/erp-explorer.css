@@ -27,6 +27,7 @@
 .erp-table th { background: var(--ops-soft) }
 .erp-table .erp-detail-row>td { white-space: normal; overflow: visible; max-width: none; padding: 12px; background: var(--ops-soft) }
 .erp-record-details { position: sticky; left: 12px; box-sizing: border-box; max-width: 100% }
+.analysis-document-dialog .erp-record-details { position: static; width: 100% }
 .erp-expand { width: 25px; height: 25px; padding: 0; margin-right: 6px; vertical-align: middle }
 .erp-record-fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 6px 18px; margin: 8px 0 }
 .erp-record-fields>div { min-width: 0; border-bottom: 1px solid var(--ops-line); padding: 5px 0 }
@@ -40,6 +41,8 @@
 .erp-child-filters { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; padding: 4px 0 8px; font-size: 12px }
 .erp-child-filters>label { display: grid; gap: 4px }
 .erp-child-filters input { min-width: 100px; max-width: 220px }
+.erp-child-filters input, .erp-child-filters select { min-height: 32px; padding: 5px 8px; border: 1px solid var(--ops-line); border-radius: 6px; background: var(--ops-surface, #fff); color: var(--ops-ink); font: inherit }
+.analysis-document-dialog .erp-nested .analysis-information { display: none }
 .erp-preset-controls { display: grid; gap: 6px; padding: 8px 0 }
 .erp-view .analysis-information { padding: 0 14px 8px; max-height: 180px; overflow: auto }
 .erp-nested .analysis-information { padding: 6px 0 }

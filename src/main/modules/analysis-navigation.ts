@@ -1,4 +1,6 @@
-import { BrowserWindow, ipcMain, Menu, WebContents } from "electron";
+import { BrowserWindow, ipcMain, screen, WebContents } from "electron";
+import { AnalysisDestinationCache } from "./analysis-destination-cache";
+import { AnalysisContextMenu } from "./analysis-context-menu";
 import path from "path";
 import {
     ANALYSIS_TARGETS,
@@ -20,6 +22,12 @@ const modules = new Map<
     }
 >();
 const additionalSources = new Set<(event: any) => boolean>();
+const destinationCache = new AnalysisDestinationCache(destinationExists);
+const contextMenu = new AnalysisContextMenu();
+const preparations = new Map<number, number>();
+export function invalidateAnalysisDestinations() {
+    destinationCache.clear();
+}
 /** Native operational modules can offer existing analysis destinations without becoming a destination. */
 export function registerAnalysisSource(owns: (event: any) => boolean) {
     additionalSources.add(owns);
@@ -36,73 +44,81 @@ export function registerAnalysisTarget(
     exists?: (context: AnalysisContext) => Promise<boolean>,
 ) {
     modules.set(id, { open, owns, exists });
+    destinationCache.clear();
 }
 async function destinationExists(
     target: AnalysisTarget,
     context: AnalysisContext,
 ): Promise<boolean> {
-    try {
-        if (!modules.has(target)) return false;
-        const module = modules.get(target)!;
-        if (module.exists) return await module.exists(context);
-        if (target === "bom-analysis") {
-            const result = await requestAypiBackend("/api/erp/bom-analysis", {
-                method: "POST",
-                body: context.bom
-                    ? { bom: context.bom }
-                    : { article: context.article },
-            });
-            return result.rows?.length > 0;
-        }
-        if (target === "customer-analysis") {
-            const result = await requestAypiBackend(
-                "/api/erp/customer-search",
-                {
-                    method: "POST",
-                    body: {
-                        search: context.customerCode || context.customerName,
-                    },
-                },
-            );
-            const same = (a: string, b?: string) =>
-                !!b &&
-                a?.trim().toLocaleLowerCase("it") ===
-                    b.trim().toLocaleLowerCase("it");
-            return (
-                result.customers?.some((c: any) =>
-                    context.customerCode
-                        ? same(c.code, context.customerCode)
-                        : same(c.name, context.customerName),
-                ) ?? false
-            );
-        }
-        const result = await requestAypiBackend(`/api/erp/${target}`, {
+    if (!modules.has(target)) return false;
+    const module = modules.get(target)!;
+    if (module.exists) return await module.exists(context);
+    if (target === "bom-analysis") {
+        const result = await requestAypiBackend("/api/erp/bom-analysis", {
             method: "POST",
-            body: {
-                articles: context.article
-                    ? [{ op: "exact", value: context.article }]
-                    : [],
-                ...(context.documentId
-                    ? { documentId: Number(context.documentId) }
-                    : {}),
-                offset: 0,
-                limit: 1,
-            },
+            body: context.bom
+                ? { bom: context.bom }
+                : { article: context.article },
         });
         return result.rows?.length > 0;
-    } catch {
-        return false;
     }
+    if (target === "customer-analysis") {
+        const result = await requestAypiBackend(
+            "/api/erp/customer-search",
+            {
+                method: "POST",
+                body: {
+                    search: context.customerCode || context.customerName,
+                },
+            },
+        );
+        const same = (a: string, b?: string) =>
+            !!b &&
+            a?.trim().toLocaleLowerCase("it") ===
+                b.trim().toLocaleLowerCase("it");
+        return (
+            result.customers?.some((c: any) =>
+                context.customerCode
+                    ? same(c.code, context.customerCode)
+                    : same(c.name, context.customerName),
+            ) ?? false
+        );
+    }
+    const result = await requestAypiBackend(`/api/erp/${target}`, {
+        method: "POST",
+        body: {
+            articles: context.article
+                ? [{ op: "exact", value: context.article }]
+                : [],
+            ...(context.documentId
+                ? { documentId: Number(context.documentId) }
+                : {}),
+            offset: 0,
+            limit: 1,
+        },
+    });
+    return result.rows?.length > 0;
 }
 function observeContextWindow(contents: WebContents) {
     const id = contents.id;
     if (observed.has(id)) return;
     observed.add(id);
-    contents.on("did-start-loading", () => ready.delete(id));
+    BrowserWindow.fromWebContents(contents)?.on("blur", () => {
+        if (contents.isDestroyed()) return;
+        preparations.set(id, (preparations.get(id) || 0) + 1);
+        contextMenu.cancelBeforePopup(contents);
+    });
+    contents.on("did-start-loading", () => {
+        ready.delete(id);
+        preparations.delete(id);
+        contextMenu.cancel(contents);
+    });
     contents.once("destroyed", () => {
         ready.delete(id);
         pending.delete(id);
         observed.delete(id);
+        preparations.delete(id);
+        contextMenu.cancel(contents);
     });
 }
 async function navigateAnalysis(
@@ -128,6 +144,7 @@ export async function relatedAnalysisMenuItems(
     source: string,
     payload: unknown,
     sender: WebContents,
+    options: { foreground?: boolean; isCurrent?: () => boolean } = {},
 ): Promise<Electron.MenuItemConstructorOptions[]> {
     const context = validateAnalysisContext(payload),
         items: Electron.MenuItemConstructorOptions[] = [],
@@ -144,10 +161,22 @@ export async function relatedAnalysisMenuItems(
         const entry = stationCatalog.find((entry) => entry.target === target);
         if (entry && !canAccessStationEntry(entry.id)) return;
         if (target === source) return;
+        if (!modules.has(target)) return;
         candidates.push({ target, label, context: value });
     };
-    if (context.article || context.bom || context.customerCode || context.supplierCode || context.documentId || context.purchaseOrderId || context.productionOrderId || context.contractId)
-        add("erp-explorer", "Mostra nel gestionale · Analisi AGPress", context);
+    if (
+        context.article ||
+        context.bom ||
+        context.customerCode ||
+        context.supplierCode ||
+        context.documentId ||
+        context.purchaseOrderId ||
+        context.productionOrderId ||
+        context.contractId
+    )
+        add("erp-explorer", context.purchaseOrderId
+            ? "Mostra ordine d’acquisto in Esplora gestionale"
+            : "Mostra nel gestionale · Analisi AGPress", context);
     if (context.article) {
         add("bar-contracts", "Mostra contratti barra collegati all’articolo", {
             article: context.article,
@@ -254,14 +283,20 @@ export async function relatedAnalysisMenuItems(
             supplierCode: context.supplierCode,
         });
     }
-    const available: { item: typeof candidates[number]; exists: boolean }[] = [];
+    const available: { item: (typeof candidates)[number]; exists: boolean }[] =
+        [];
     // Avoid making valid destinations disappear because all ERP probes start
     // together and exceed the backend's concurrent-search limit.
     for (let index = 0; index < candidates.length; index += 2) {
-        if (sender.isDestroyed()) return [];
-        available.push(...await Promise.all(candidates.slice(index, index + 2).map(async item => ({
-            item, exists: await destinationExists(item.target, item.context),
-        }))));
+        if (sender.isDestroyed() || options.isCurrent?.() === false) return [];
+        available.push(
+            ...(await Promise.all(
+                candidates.slice(index, index + 2).map(async (item) => ({
+                    item,
+                    exists: await destinationCache.probe(item.target, item.context, options.foreground !== false),
+                })),
+            )),
+        );
     }
     if (sender.isDestroyed()) return [];
     for (const { item, exists } of available)
@@ -375,13 +410,27 @@ export function registerAnalysisNavigation(
         }
     });
     ipcMain.handle("analysis-document-lines", async (event, payload) => {
-        if (![...modules.values()].some(m => m.owns(event)))
+        if (![...modules.values()].some((m) => m.owns(event)))
             return { ok: false, error: "Finestra non autorizzata." };
         try {
-            if (!payload || !["order", "offer"].includes(payload.kind) || !Number.isInteger(payload.id) || payload.id < 1 || payload.id > 2147483647)
+            if (
+                !payload ||
+                !["order", "offer"].includes(payload.kind) ||
+                !Number.isInteger(payload.id) ||
+                payload.id < 1 ||
+                payload.id > 2147483647
+            )
                 throw Error("Documento non valido.");
-            return { ok: true, ...(await requestAypiBackend("/api/erp/document-lines", { method: "POST", body: { kind: payload.kind, id: payload.id } })) };
-        } catch (error) { return { ok: false, error: (error as Error).message }; }
+            return {
+                ok: true,
+                ...(await requestAypiBackend("/api/erp/document-lines", {
+                    method: "POST",
+                    body: { kind: payload.kind, id: payload.id },
+                })),
+            };
+        } catch (error) {
+            return { ok: false, error: (error as Error).message };
+        }
     });
     ipcMain.handle("analysis-navigate", async (event, payload) => {
         try {
@@ -406,19 +455,35 @@ export function registerAnalysisNavigation(
                     ? "operational-module"
                     : null);
             if (!source) throw Error("Finestra non autorizzata.");
-            const items = await relatedAnalysisMenuItems(
-                source,
-                payload,
-                event.sender,
+            const context = validateAnalysisContext(payload);
+            observeContextWindow(event.sender);
+            preparations.set(event.sender.id, (preparations.get(event.sender.id) || 0) + 1);
+            const position = screen.getCursorScreenPoint();
+            await contextMenu.show(event.sender, position, isCurrent =>
+                relatedAnalysisMenuItems(source, context, event.sender, { isCurrent }),
             );
-            if (!items.length) return { ok: true };
-            Menu.buildFromTemplate(items).popup({
-                window:
-                    BrowserWindow.fromWebContents(event.sender) || undefined,
-            });
             return { ok: true };
         } catch (error) {
             return { ok: false, error: (error as Error).message };
         }
+    });
+    ipcMain.on("analysis-context-menu-prepare", (event, payload) => {
+        const source = [...modules].find(([, module]) => module.owns(event))?.[0] ||
+            ([...additionalSources].some(owns => owns(event)) ? "operational-module" : null);
+        if (!source) return;
+        const sender = event.sender;
+        observeContextWindow(sender);
+        const generation = (preparations.get(sender.id) || 0) + 1;
+        preparations.set(sender.id, generation);
+        if (!payload) return;
+        void relatedAnalysisMenuItems(source, payload, sender, {
+            foreground: false,
+            isCurrent: () => preparations.get(sender.id) === generation,
+        }).catch(() => {});
+    });
+    ipcMain.on("analysis-context-menu-cancel", event => {
+        if (!canOpenAnalysis(event.sender)) return;
+        preparations.set(event.sender.id, (preparations.get(event.sender.id) || 0) + 1);
+        contextMenu.cancel(event.sender);
     });
 }

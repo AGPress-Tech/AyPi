@@ -63,7 +63,7 @@ import {
     SortCriterion,
     sortByCriteria,
 } from "../../main/modules/analysis-sorting";
-import { bindSortingHeaders, updateSortingBar } from "../modules/table-sorting";
+import { bindSortingHeaders, updateSortingBar, setExpandedTableRow } from "../modules/table-sorting";
 
 const ipc = require("electron").ipcRenderer;
 const $ = (id: string) => document.getElementById(id)!;
@@ -2151,6 +2151,7 @@ $("content").addEventListener("click", (event) => {
             parent = expandDocument.closest("tr")!,
             current = parent.nextElementSibling;
         if (current?.classList.contains("customer-document-lines")) {
+            setExpandedTableRow(parent, null);
             current.remove();
             expandDocument.setAttribute("aria-expanded", "false");
             expandDocument.textContent = "▸";
@@ -2163,6 +2164,7 @@ $("content").addEventListener("click", (event) => {
         const cell = document.createElement("td");
         cell.colSpan = parent.children.length;
         child.append(cell);
+        setExpandedTableRow(parent, child);
         parent.after(child);
         const id =
             "customerDocumentLines-" +

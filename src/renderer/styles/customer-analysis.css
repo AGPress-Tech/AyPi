@@ -236,7 +236,7 @@
     text-overflow: ellipsis
 }
 
-.customer-window tbody tr:hover td {
+.customer-window tbody tr:hover>td {
     background: var(--ops-soft)
 }
 

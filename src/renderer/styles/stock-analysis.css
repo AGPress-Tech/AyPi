@@ -273,7 +273,7 @@
     white-space: normal
 }
 
-.stock-customer-commitments button {
+.stock-customer-commitments td button[data-open-order] {
     border: 0;
     background: transparent;
     padding: 0;

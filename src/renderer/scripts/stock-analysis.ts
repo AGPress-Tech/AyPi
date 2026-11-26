@@ -18,7 +18,7 @@ import {
     stockVisibleColumns,
 } from "../../main/modules/stock-analysis/model";
 import { continueTableOnScroll } from "../modules/table-scroll-loader";
-import { bindSortingHeaders, updateSortingBar } from "../modules/table-sorting";
+import { bindSortingHeaders, updateSortingBar, setExpandedTableRow } from "../modules/table-sorting";
 import { installAnalysisLinks } from "../modules/analysis-links";
 import { contextFromAnalysisElement } from "../modules/document-links";
 import { renderStockCustomerCommitments } from "../modules/stock-customer-commitments";
@@ -229,6 +229,7 @@ function toggleDetails(button: HTMLButtonElement) {
         key = button.dataset.expandStock!,
         current = parent.nextElementSibling;
     if (current?.classList.contains("stock-detail-row")) {
+        setExpandedTableRow(parent, null);
         current.remove();
         expanded.delete(key);
         button.textContent = "▸";
@@ -243,6 +244,7 @@ function toggleDetails(button: HTMLButtonElement) {
     const cell = document.createElement("td");
     cell.colSpan = parent.children.length;
     child.append(cell);
+    setExpandedTableRow(parent, child);
     parent.after(child);
     const panel = document.createElement("div");
     panel.className = "stock-detail";

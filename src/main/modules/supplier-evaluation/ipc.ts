@@ -12,6 +12,7 @@ import { excelDateCell, excelNumberFormat } from "../analysis-excel";
 import { validateWorkspace } from "../analysis-ui-model";
 import {
     registerAnalysisTarget,
+    invalidateAnalysisDestinations,
     relatedAnalysisMenuItems,
 } from "../analysis-navigation";
 const execute = promisify(execFile);
@@ -58,6 +59,7 @@ export function registerSupplierEvaluationIpc(
             return window;
         }
         actor = "";
+        invalidateAnalysisDestinations();
         groups = {};
         preview = null;
         const win = new BrowserWindow({
@@ -80,6 +82,7 @@ export function registerSupplierEvaluationIpc(
             if (window === win) {
                 window = null;
                 actor = "";
+                invalidateAnalysisDestinations();
                 preview = null;
             }
         });
@@ -141,6 +144,7 @@ export function registerSupplierEvaluationIpc(
                 );
             if (!found) throw Error("Selezionare un dipendente dall’elenco.");
             actor = found;
+            invalidateAnalysisDestinations();
             return { actor, ...(await request("snapshot")) };
         });
     });
@@ -150,6 +154,7 @@ export function registerSupplierEvaluationIpc(
     ipcMain.on("supplier-evaluation-logout", (e) => {
         if (owns(e)) {
             actor = "";
+            invalidateAnalysisDestinations();
             preview = null;
         }
     });

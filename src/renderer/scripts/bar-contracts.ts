@@ -2,7 +2,7 @@ import { specialFilterEditor } from "../modules/analysis-special-filter-editor";
 import { recentAnalysisYears } from "../../main/modules/analysis-filter-modes";
 import { ruleMode, readRuleMode } from "../modules/analysis-rule-mode";
 import { continueTableOnScroll } from "../modules/table-scroll-loader";
-import { bindSortingHeaders, updateSortingBar } from "../modules/table-sorting";
+import { bindSortingHeaders, updateSortingBar, setExpandedTableRow } from "../modules/table-sorting";
 import { installAnalysisLinks } from "../modules/analysis-links";
 import { contextFromAnalysisElement } from "../modules/document-links";
 import type { AnalysisContext } from "../../main/modules/analysis-navigation-model";
@@ -191,7 +191,7 @@ function markup(data: Row[], columns: typeof COLUMNS, contractRows = false) {
                 columns
                     .map(
                         (c, index) =>
-                            `<td data-column="${c.key}" ${c.key === "item" && row.item ? `data-analysis-article="${esc(row.item)}"` : ["supplier", "supplierCode"].includes(c.key) && row.supplierCode ? `data-analysis-supplier-code="${esc(row.supplierCode)}"` : ""} class="${c.kind === "number" ? "numeric" : ""}" title="${esc(format(row, c))}">${contractRows && index === 0 ? `<button class="document-expand" data-expand-contract="${esc(row.id)}" data-line="${esc(row.line)}" data-supplier="${esc(row.supplierCode)}" aria-expanded="${expandedContracts.has(contractKey(row))}" aria-label="Mostra o nascondi ordini del contratto ${esc(row.contract)}, riga ${esc(row.line)}">${expandedContracts.has(contractKey(row)) ? "▾" : "▸"}</button>` : ""}${c.key === "contract" ? `<button class="bom-link" data-contract="${row.id}" data-line="${row.line}">${esc(format(row, c))}</button>` : esc(format(row, c))}</td>`,
+                            `<td data-column="${c.key}" ${c.key === "document" && /^[1-9]\d{0,9}$/.test(String(row.id || "")) ? `data-analysis-purchase-order-id="${esc(row.id)}"` : c.key === "item" && row.item ? `data-analysis-article="${esc(row.item)}"` : ["supplier", "supplierCode"].includes(c.key) && row.supplierCode ? `data-analysis-supplier-code="${esc(row.supplierCode)}"` : ""} class="${c.kind === "number" ? "numeric" : ""}" title="${esc(format(row, c))}">${contractRows && index === 0 ? `<button class="document-expand" data-expand-contract="${esc(row.id)}" data-line="${esc(row.line)}" data-supplier="${esc(row.supplierCode)}" aria-expanded="${expandedContracts.has(contractKey(row))}" aria-label="Mostra o nascondi ordini del contratto ${esc(row.contract)}, riga ${esc(row.line)}">${expandedContracts.has(contractKey(row)) ? "▾" : "▸"}</button>` : ""}${c.key === "contract" ? `<button class="bom-link" data-contract="${row.id}" data-line="${row.line}">${esc(format(row, c))}</button>` : esc(format(row, c))}</td>`,
                     )
                     .join("") +
                 "</tr>",
@@ -290,6 +290,7 @@ function toggleSupplier(button: HTMLButtonElement) {
         key = button.dataset.expandSupplier!,
         current = parent.nextElementSibling;
     if (current?.classList.contains("bar-supplier-contracts-row")) {
+        setExpandedTableRow(parent, null);
         current.remove();
         cleanupPinnedTables();
         expandedSuppliers.delete(key);
@@ -330,6 +331,7 @@ function toggleSupplier(button: HTMLButtonElement) {
     scroller.append(nested);
     panel.append(heading, scroller);
     cell.append(panel);
+    setExpandedTableRow(parent, child);
     parent.after(child);
     panel.style.width =
         Math.max(200, table.parentElement!.clientWidth - 56) + "px";
@@ -821,6 +823,7 @@ function toggleContractOrders(button: HTMLButtonElement) {
     const key = contractKey(row),
         current = parent.nextElementSibling;
     if (current?.classList.contains("contract-orders-row")) {
+        setExpandedTableRow(parent, null);
         current.remove();
         expandedContracts.delete(key);
         button.textContent = "▸";
@@ -853,6 +856,7 @@ function toggleContractOrders(button: HTMLButtonElement) {
     scroller.append(nested);
     panel.append(title, scroller);
     cell.append(panel);
+    setExpandedTableRow(parent, child);
     parent.after(child);
     panel.style.width =
         Math.max(200, table.parentElement!.clientWidth - 56) + "px";

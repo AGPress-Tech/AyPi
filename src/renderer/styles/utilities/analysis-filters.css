@@ -7,7 +7,7 @@
 .analysis-document-dialog::backdrop { background: #0006 }
 .analysis-document-scroll { flex: 1; min-height: 0; overflow: auto; padding: 16px }
 .analysis-document-dialog .dialog-actions { padding: 10px 16px; border-top: 1px solid var(--ops-line, #ddd); display: flex; justify-content: flex-end }
-.analysis-document-details>h3 { margin: 8px 0; font-size: 14px }
+.analysis-document-details>.analysis-document-content>h3 { margin: 0 0 10px; font-size: 14px }
 .analysis-document-details .table-scroll { max-height: 55vh; overflow: auto }
 .analysis-document-details table { border-collapse: separate; border-spacing: 0; width: 100% }
 .analysis-document-details th, .analysis-document-details td { border-right: 1px solid var(--ops-line, #ddd); border-bottom: 1px solid var(--ops-line, #ddd); padding: 7px 9px; white-space: nowrap }

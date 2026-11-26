@@ -20,7 +20,7 @@ require('../dist-ts/modules/file-manager/backend-client').requestAypiBackend = a
     if (endpoint === '/api/supplier-evaluation/preferences') return { preferences: body };
     throw Error('Unexpected endpoint ' + endpoint);
 };
-let menu = []; Menu.buildFromTemplate = items => ({ popup() { menu = items; } });
+Menu.setApplicationMenu(null); let menu = []; Menu.buildFromTemplate = items => ({ popup() { menu = items; } });
 const run = (w, code) => w.webContents.executeJavaScript(code, true), find = page => BrowserWindow.getAllWindows().find(w => w.webContents.getURL().split('?')[0].endsWith('/' + page));
 const until = async (fn, label = 'condition') => { const start = Date.now(); while (Date.now() - start < 15000) { if (await fn()) return; await new Promise(r => setTimeout(r, 35)); } throw Error('Timeout ' + label); };
 const right = async (w, selector) => { menu = []; await run(w, `document.querySelector(${JSON.stringify(selector)}).dispatchEvent(new MouseEvent('contextmenu',{bubbles:true,cancelable:true}))`); };

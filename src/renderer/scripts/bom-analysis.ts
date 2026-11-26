@@ -19,7 +19,7 @@ import {
     validateBomSearch,
     validateBomPreferences,
 } from "../../main/modules/bom-analysis/model";
-import { bindSortingHeaders, updateSortingBar } from "../modules/table-sorting";
+import { bindSortingHeaders, updateSortingBar, setExpandedTableRow } from "../modules/table-sorting";
 import { installAnalysisLinks } from "../modules/analysis-links";
 import { contextFromAnalysisElement } from "../modules/document-links";
 const ipc = require("electron").ipcRenderer;
@@ -266,6 +266,7 @@ function toggleArticle(button: HTMLButtonElement) {
         key = component.trim().toLocaleLowerCase("it"),
         existing = parent.nextElementSibling;
     if (existing?.classList.contains("bom-where-used-row")) {
+        setExpandedTableRow(parent, null);
         existing.remove();
         expandedArticles.delete(key);
         button.textContent = "▸";
@@ -304,6 +305,7 @@ function toggleArticle(button: HTMLButtonElement) {
     scroller.append(nested);
     panel.append(heading, scroller);
     cell.append(panel);
+    setExpandedTableRow(parent, child);
     parent.after(child);
     const outer = parent.closest("table")!;
     panel.style.width =
@@ -497,6 +499,7 @@ function toggleComposition(button: HTMLButtonElement) {
         "[data-expand-bom][aria-expanded=true]",
     );
     if (current?.classList.contains("bom-composition-row")) {
+        setExpandedTableRow(parent, null);
         current.remove();
         if (currentButton) {
             currentButton.setAttribute("aria-expanded", "false");
@@ -542,6 +545,7 @@ function toggleComposition(button: HTMLButtonElement) {
     scroller.append(nested);
     panel.append(heading, description, scroller);
     cell.append(panel);
+    setExpandedTableRow(parent, child);
     parent.after(child);
     panel.style.width =
         Math.max(200, table.parentElement!.clientWidth - 56) + "px";

@@ -2,10 +2,10 @@ import { ERP_BLOCKS, ErpColumn, ErpPage, explorerCellContext, explorerContextReq
 import type { AnalysisContext } from "../../main/modules/analysis-navigation-model";
 import { specialFilterEditor } from "../modules/analysis-special-filter-editor";
 import { recentAnalysisYears } from "../../main/modules/analysis-filter-modes";
-import { bindSortingHeaders } from "../modules/table-sorting";
+import { bindSortingHeaders, setExpandedTableRow } from "../modules/table-sorting";
 import { installAnalysisLinks } from "../modules/analysis-links";
 import { contextFromAnalysisElement } from "../modules/document-links";
-import { openDocumentDetails } from "../modules/document-details";
+import { openDocumentDetails, openAnalysisDocumentDialog } from "../modules/document-details";
 import { renderStockCustomerCommitments } from "../modules/stock-customer-commitments";
 import { explorerColumns, explorerDefaultColumns, explorerRelations, formatExplorerValue as format } from "../../main/modules/erp-explorer/presentation";
 const ipc = require("electron").ipcRenderer;
@@ -17,9 +17,10 @@ let active: ExplorerTable;
 class ExplorerTable {
     page?: ErpPage; rows: Record<string, any>[] = []; columns: ErpColumn[] = []; visible: string[] = []; sorting: { key: string; direction: "asc" | "desc" }[] = [];
     loading = false; token = 0; applied: any; where: Record<string, any>; presets: any[] = [];
+    openRecordAfterLoad = false;
     readonly form: HTMLFormElement; readonly result: HTMLElement; readonly table: HTMLTableElement; readonly scroll: HTMLElement; readonly special: ReturnType<typeof specialFilterEditor>;
     readonly status: HTMLElement; readonly progress: HTMLElement; readonly more: HTMLButtonElement;
-    constructor(readonly host: HTMLElement, readonly dataset: string, where: Record<string, any> = {}, readonly nested = false) {
+    constructor(readonly host: HTMLElement, readonly dataset: string, where: Record<string, any> = {}, readonly nested = false, readonly fixedContext = false) {
         this.where = where;
         const dated = ["orders", "purchaseOrders", "contracts", "offers", "production", "productionEntries"].includes(dataset);
         const years = recentAnalysisYears();
@@ -44,7 +45,7 @@ class ExplorerTable {
         this.form.querySelector<HTMLButtonElement>("[data-special-create]")!.disabled = true;
         this.form.onsubmit = event => { event.preventDefault(); void this.load(); };
         this.form.querySelector<HTMLButtonElement>("[data-reset]")!.onclick = () => {
-            this.form.querySelectorAll<HTMLInputElement>("input").forEach(input => input.value = ""); this.where = {}; this.special.sync(); this.sorting = []; this.renderContext(); void this.load();
+            this.form.querySelectorAll<HTMLInputElement>("input").forEach(input => input.value = ""); if (!this.fixedContext) this.where = {}; this.special.sync(); this.sorting = []; this.renderContext(); void this.load();
         };
         this.more.onclick = () => void this.load(true);
         this.scroll.onscroll = () => { if (this.scroll.scrollHeight - this.scroll.scrollTop - this.scroll.clientHeight < 140) void this.load(true); };
@@ -71,6 +72,7 @@ class ExplorerTable {
     private message(text: string, error = false) { this.status.textContent = text; this.status.classList.toggle("error", error); }
     private renderContext() {
         const node = this.form.querySelector<HTMLElement>("[data-context]")!;
+        if (this.fixedContext) { node.replaceChildren(); return; }
         node.innerHTML = Object.keys(this.where).length ? `<span>Contesto esatto: ${esc(Object.entries(this.where).map(([key, value]) => `${this.columns.find(c => c.key === key)?.label || "Selezione collegata"}: ${/Id$|Type$/.test(key) ? "attiva" : value}`).join(" · "))}</span><br><button type="button">Rimuovi contesto</button>` : "";
         const button = node.querySelector("button"); if (button) button.onclick = () => { this.where = {}; this.renderContext(); void this.load(); };
     }
@@ -110,7 +112,15 @@ class ExplorerTable {
             this.progress.textContent = `${this.rows.length.toLocaleString("it-IT")} di ${total.toLocaleString("it-IT")} righe${page.period ? ` · ${page.period.year} / ${page.period.period}` : ""}`;
             this.more.hidden = this.rows.length >= total;
             this.message(this.rows.length ? "" : "Nessun risultato per i filtri selezionati.");
-        } catch (error) { if (token === this.token) this.message((error as Error).message, true); }
+            if (!append && this.openRecordAfterLoad) {
+                this.openRecordAfterLoad = false;
+                if (active === this && this.rows.length === 1) {
+                    const parent = this.table.tBodies[0].rows[0];
+                    const opener = parent?.querySelector<HTMLElement>("[data-erp-document]") || parent?.querySelector<HTMLElement>(".erp-expand");
+                    if (opener) this.openRecordDialog(opener, this.rows[0]);
+                }
+            }
+        } catch (error) { if (token === this.token) { this.openRecordAfterLoad = false; this.message((error as Error).message, true); } }
         finally { if (token === this.token) { this.loading = false; this.form.querySelector<HTMLButtonElement>('[type=submit]')!.disabled = false; this.syncExport(); } }
     }
     private activeColumns() { return this.visible.map(key => this.columns.find(c => c.key === key)!).filter(Boolean); }
@@ -134,24 +144,49 @@ class ExplorerTable {
             tr.querySelectorAll<HTMLButtonElement>("[data-document-id]").forEach(button => button.onclick = () => openDocumentDetails(button, button.dataset.documentKind as "order" | "offer", Number(button.dataset.documentId), button.dataset.documentNo!));
             tr.querySelectorAll<HTMLButtonElement>("[data-erp-document]").forEach(button => button.onclick = () => {
                 const context = explorerCellContext(this.dataset, row, button.dataset.erpDocument!)!;
-                const request = explorerContextRequest(context); activate(request.dataset, request.where);
+                const request = explorerContextRequest(context);
+                if (request.dataset === this.dataset) this.openRecordDialog(button, row);
+                else activate(request.dataset, request.where, true);
             });
             body.append(tr);
         }
     }
     private expand(parent: HTMLTableRowElement, row: Record<string, any>) {
         const button = parent.querySelector<HTMLButtonElement>(".erp-expand")!;
-        if (parent.nextElementSibling?.classList.contains("erp-detail-row")) { parent.nextElementSibling.remove(); button.textContent = "▸"; button.setAttribute("aria-expanded", "false"); return; }
-        const tr = document.createElement("tr"), cell = document.createElement("td"); tr.className = "erp-detail-row"; cell.colSpan = this.visible.length; tr.append(cell); parent.after(tr);
+        if (parent.nextElementSibling?.classList.contains("erp-detail-row")) { setExpandedTableRow(parent, null); parent.nextElementSibling.remove(); button.textContent = "▸"; button.setAttribute("aria-expanded", "false"); return; }
+        const tr = document.createElement("tr"), cell = document.createElement("td"); tr.className = "erp-detail-row"; cell.colSpan = this.visible.length; tr.append(cell); setExpandedTableRow(parent, tr); parent.after(tr);
         button.textContent = "▾"; button.setAttribute("aria-expanded", "true");
         const detail = document.createElement("div"); detail.className = "erp-record-details"; detail.dataset.erpRecord = ""; records.set(detail, { dataset: this.dataset, row }); cell.append(detail);
         detail.style.width = Math.max(200, this.scroll.clientWidth - 28) + "px";
-        const useful = this.columns.filter(c => !this.visible.includes(c.key) && row[c.key] != null && row[c.key] !== "" && (c.kind !== "boolean" || !!row[c.key]) && (this.dataset !== "stock" || c.kind !== "number" || Number(row[c.key]) !== 0));
-        detail.innerHTML = useful.length ? `<details><summary>${this.dataset === "stock" ? "Impegni e movimenti" : "Altre informazioni"}</summary><dl class="erp-record-fields">${useful.map(c => `<div><dt>${esc(c.label)}</dt><dd data-erp-field="${esc(c.key)}" title="${esc(row[c.key])}">${esc(format(row[c.key], c))}</dd></div>`).join("")}</dl></details>` : "";
+        this.renderRecordDetails(detail, row);
+    }
+    private openRecordDialog(opener: HTMLElement, row: Record<string, any>) {
+        const keys = this.page?.keys || [];
+        const identity = JSON.stringify([this.dataset, keys.length ? keys.map(key => row[key]) : row]);
+        for (const existing of document.querySelectorAll<HTMLDialogElement>(".analysis-document-dialog")) {
+            if (existing.dataset.erpIdentity === identity && existing.open) { existing.focus(); return; }
+            existing.close();
+        }
+        const kind = ({ purchaseOrders: "Ordine fornitore", contracts: "Contratto fornitore", production: "Ordine di produzione" })[this.dataset] || "Documento";
+        const label = kind + " " + String(row.InternalOrdNo || row.QuotationNo || row.MONo || row._DocumentNo || "");
+        const dialog = openAnalysisDocumentDialog(opener, label, host => {
+            host.classList.add("analysis-document-details");
+            host.innerHTML = `<div class="analysis-document-content"><h3>${esc(label)}</h3><div class="erp-record-details" data-erp-record></div></div>`;
+            const detail = host.querySelector<HTMLElement>(".erp-record-details")!;
+            records.set(detail, { dataset: this.dataset, row });
+            this.renderRecordDetails(detail, row, true);
+        });
+        dialog.dataset.erpIdentity = identity;
+    }
+    private renderRecordDetails(detail: HTMLElement, row: Record<string, any>, complete = false) {
+        const useful = this.columns.filter(c => (complete || !this.visible.includes(c.key)) && row[c.key] != null && row[c.key] !== "" && (complete || c.kind !== "boolean" || !!row[c.key]) && (this.dataset !== "stock" || c.kind !== "number" || Number(row[c.key]) !== 0));
+        detail.innerHTML = useful.length ? `<details ${complete ? "open" : ""}><summary>${complete ? "Dati del documento" : this.dataset === "stock" ? "Impegni e movimenti" : "Altre informazioni"}</summary><dl class="erp-record-fields">${useful.map(c => `<div><dt>${esc(c.label)}</dt><dd data-erp-field="${esc(c.key)}" title="${esc(row[c.key])}">${esc(format(row[c.key], c))}</dd></div>`).join("")}</dl></details>` : "";
         for (const relation of explorerRelations(this.page?.relations || [])) {
             if (Object.keys(relation.map).some(key => row[key] == null || row[key] === "")) continue;
             const details = document.createElement("details"); details.innerHTML = `<summary>${esc(relation.label)}</summary><div></div>`; detail.append(details); let child: ExplorerTable | undefined;
-            details.addEventListener("toggle", () => { if (details.open && !child) { child = new ExplorerTable(details.querySelector("div")!, relation.target, Object.fromEntries(Object.entries(relation.map).map(([from, to]) => [to, row[from]])), true); void child.load(); } });
+            const load = () => { if (details.open && !child) { child = new ExplorerTable(details.querySelector("div")!, relation.target, Object.fromEntries(Object.entries(relation.map).map(([from, to]) => [to, row[from]])), true, complete); void child.load(); } };
+            details.addEventListener("toggle", load);
+            if (complete && relation.id === "lines") { details.open = true; load(); }
         }
         if (["stock", "articles"].includes(this.dataset) && row.Item) {
             const demand = document.createElement("details"); demand.innerHTML = '<summary>Ordini clienti aperti · residuo, allocato e prelevato</summary><div></div>'; detail.append(demand); let requested = false;
@@ -178,11 +213,12 @@ class ExplorerTable {
         else if (result.ok) this.message(`Esportate ${result.count.toLocaleString("it-IT")} righe.`);
     }
 }
-function activate(dataset: string, where?: Record<string, any>) {
+function activate(dataset: string, where?: Record<string, any>, showDocument = false) {
     let view = views.get(dataset);
     if (!view) { const host = document.createElement("section"); $("views").append(host); view = new ExplorerTable(host, dataset, where); views.set(dataset, view); }
     for (const other of views.values()) other.host.hidden = other !== view;
     active = view;
+    view.openRecordAfterLoad = showDocument;
     view.syncExport();
     if (where) { view.where = where; view.form.querySelectorAll<HTMLInputElement>("input").forEach(field => field.value = ""); view.special.sync(); }
     const block = ["purchaseOrders", "offers", "production"].includes(dataset) ? "orders" : dataset;
@@ -204,6 +240,6 @@ installAnalysisLinks(target => {
     const source = parent ? records.get(parent) : null;
     return source && cell ? explorerCellContext(source.dataset, source.row, cell.dataset.erpField!) : null;
 }, message => { const status = active?.status; if (status) status.textContent = message; });
-ipc.on("analysis-open-context", (_event: unknown, context: AnalysisContext) => { const query = explorerContextRequest(context); activate(query.dataset, query.where); });
+ipc.on("analysis-open-context", (_event: unknown, context: AnalysisContext) => { const query = explorerContextRequest(context); activate(query.dataset, query.where, !!(context.purchaseOrderId || context.productionOrderId || context.contractId)); });
 activate("customers");
 ipc.send("analysis-context-ready");

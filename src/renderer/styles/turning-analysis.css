@@ -631,7 +631,7 @@ th:first-child {
     z-index: 4
 }
 
-tr:hover td {
+tr:hover>td {
     background: var(--ops-soft)
 }
 

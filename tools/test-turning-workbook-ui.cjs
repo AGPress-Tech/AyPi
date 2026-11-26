@@ -43,6 +43,13 @@ app.whenReady().then(async () => {
                 const size = await run("(()=>{const r=document.querySelector('.workbook-panel .table-scroll').getBoundingClientRect();return {height:r.height,bottom:r.bottom,vh:innerHeight}})()"); assert(size.height > 220 && size.bottom <= size.vh, JSON.stringify(size));
                 fs.writeFileSync(path.join(dir, theme + '-' + width + '.png'), (await win.webContents.capturePage()).toPNG());
             }
+            await run("document.querySelector('[data-view=comparisons]').click();document.querySelector('#monthlyDetail').click()");
+            await until("!!document.querySelector('#turningTable [data-expand]')");
+            await run("document.querySelector('#turningTable [data-expand]').click()");
+            assert(await run("!!document.querySelector('#turningTable .analysis-expanded-source') && !!document.querySelector('#turningTable .analysis-expanded-end')"));
+            assert.equal(await run("getComputedStyle(document.querySelector('#turningTable .analysis-expanded-end td')).borderBottomWidth"), '2px');
+            await run("document.querySelector('#turningTable [data-expand]').click()");
+            assert(!await run("!!document.querySelector('#turningTable .analysis-expanded-source,.analysis-expanded-part')"));
             await run("document.querySelector('[data-view=dashboard]').click();document.querySelector('[data-view=workbook]').click()"); assert.equal(await run("!!document.querySelector('#workbookTable')"), true);
         }
         assert.deepEqual(fs.readFileSync(source), original); assert.deepEqual(errors, []); console.log('OK: vista Excel originale, solo Completo, colonne escluse e nascoste, righe escluse dalle analisi, ricerca colonne, intervalli, ordinamento, paginazione, export tipizzato, due temi e dimensioni.');

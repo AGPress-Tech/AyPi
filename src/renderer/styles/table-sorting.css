@@ -78,6 +78,7 @@ body.aypi-operations table :is(th, td) {
   font: inherit !important;
   font-weight: inherit !important;
   text-align: inherit;
+  text-decoration: none;
   white-space: nowrap;
   cursor: pointer;
 }
@@ -201,4 +202,48 @@ button.document-expand {
   background: transparent;
   color: var(--ops-accent);
   font-size: 13px
+}
+
+button.document-link {
+  border: 0;
+  border-radius: 0;
+  padding: 0;
+  background: transparent;
+  box-shadow: none;
+  color: var(--ops-accent);
+  text-decoration: underline;
+  text-underline-offset: 3px
+}
+
+tr.analysis-expanded-source>td {
+  background: var(--ops-soft, #faf7ef);
+  border-top: 2px solid var(--ops-accent)
+}
+
+tr.analysis-expanded-source>td:first-child {
+  border-left: 3px solid var(--ops-accent)
+}
+
+tr.document-links-row>td, tr.analysis-expanded-detail>td {
+  position: static;
+  max-width: none;
+  padding: 12px 16px 16px !important;
+  overflow: visible;
+  white-space: normal;
+  font-weight: normal;
+  box-shadow: none;
+  border-left: 3px solid var(--ops-accent);
+  border-bottom: 2px solid var(--ops-accent)
+}
+
+tr.document-links-row:hover>td, tr.analysis-expanded-detail:hover>td {
+  background: var(--ops-surface, #fff)
+}
+
+tr.analysis-expanded-part>td:first-child {
+  border-left: 3px solid var(--ops-accent)
+}
+
+tr.analysis-expanded-end>td {
+  border-bottom: 2px solid var(--ops-accent)
 }

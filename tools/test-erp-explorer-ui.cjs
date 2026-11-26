@@ -27,7 +27,7 @@ const data = {
 };
 let queries = [], ownCalls = 0, linkedCalls = 0, menus = [], exportPath = path.join(dir, 'dati.xlsx');
 const ownRows = [
-    { kind: 'order', documentId: 7, documentNo: 'ORD-7', line: 1, article: 'A1', description: 'Prima voce', quantity: 2, deliveredQuantity: 1, residual: 1, unit: 'NR', unitPrice: 2.123456789, netPrice: 2, netAmount: 4, currency: 'EUR' },
+    { kind: 'order', documentId: 7, documentNo: 'ORD-7', line: 1, article: 'A1', description: 'Prima voce', quantity: 3390.0000000000005, deliveredQuantity: 3738.9000000000005, residual: -0.00001, unit: 'NR', unitPrice: 2.123456789, netPrice: 2, netAmount: 4, currency: 'EUR' },
     { kind: 'order', documentId: 7, documentNo: 'ORD-7', line: 2, article: 'OTHER', description: 'Altra voce', quantity: 3, deliveredQuantity: 0, residual: 3, unit: 'KG', unitPrice: 4, netPrice: 3, netAmount: 9, currency: 'EUR' },
     { kind: 'order', documentId: 7, documentNo: 'ORD-7', line: 3, article: '', description: 'Nota del documento', quantity: null, unit: '', netAmount: null },
 ];
@@ -42,7 +42,7 @@ require('../dist-ts/modules/file-manager/backend-client').requestAypiBackend = a
     }
     if (url === '/api/erp/document-lines') { ownCalls++; return { rows: ownRows, queriedAt: '2026-11-25T09:00:00Z' }; }
     if (url === '/api/erp/document-links') { linkedCalls++; return { rows: [{ ...ownRows[0], kind: 'offer', documentId: 8, documentNo: 'OFF-8', customerCode: '0000', customerName: 'Cliente', customerType: 'Cliente' }] }; }
-    if (url === '/api/erp/article-orders') return { rows: [{ orderId: 7, orderNo: 'ORD-7', orderDate: '2026-01-01', article: 'A1', description: 'Prima voce', line: 1, quantity: 2, unit: 'NR', residual: 1, currency: 'EUR' }], total: 1, queriedAt: '2026-11-25T09:00:00Z' };
+    if (url === '/api/erp/article-orders') return { rows: [{ orderId: 7, orderNo: 'ORD-7', orderDate: '2026-01-01', article: 'A1', description: 'Prima voce', line: 1, quantity: 3390.0000000000005, unit: 'NR', residual: 1, currency: 'EUR' }, { orderId: 9, orderNo: 'ORD-9', orderDate: '2026-01-02', article: 'A1', description: 'Voce successiva', line: 1, quantity: 1, unit: 'NR', residual: 1, currency: 'EUR' }], total: 2, queriedAt: '2026-11-25T09:00:00Z' };
     if (url === '/api/erp/stock-customer-commitments') return { rows: [], queriedAt: '2026-11-25T09:00:00Z' };
     throw Error('Unexpected request ' + url);
 };
@@ -71,6 +71,7 @@ app.whenReady().then(async () => {
         assert.equal(await run(win, "document.querySelector('.erp-view tbody tr td').textContent.includes('0000')"), true);
         await run(win, "window.firstRow=document.querySelector('.erp-view tbody tr');document.querySelector('.erp-expand').click()");
         assert(await run(win, "!document.querySelector('.erp-record-details').textContent.includes('<dettaglio completo>')"), "Technical fields stay out of details");
+        assert(await run(win, "!!document.querySelector('.erp-detail-row.analysis-expanded-detail') && !!document.querySelector('.analysis-expanded-source')"));
         assert(await run(win, "![...document.querySelectorAll('.erp-view [data-columns] input')].some(c=>['CustSuppType','CreditLimit','ExtraERP'].includes(c.dataset.key))"), "Column picker offers useful business fields only");
         await run(win, "const scroll=document.querySelector('.erp-view>.erp-results>.table-scroll');scroll.scrollTop=scroll.scrollHeight;scroll.dispatchEvent(new Event('scroll'))");
         await wait(win, "document.querySelectorAll('.erp-view>.erp-results>.table-scroll>.erp-table>tbody>tr:not(.erp-detail-row)').length>=500");
@@ -119,13 +120,42 @@ app.whenReady().then(async () => {
         await run(sales, "document.querySelector('[data-expand-document]').click()"); await wait(sales, "!!document.querySelector('.document-links-row [data-own-lines] table')");
         assert.equal(ownCalls, ownBefore + 1); assert.equal(linkedCalls, linksBefore, 'The arrow loads own order lines only');
         assert(await run(sales, "document.querySelector('.document-links-row').textContent.includes('OTHER')"));
+        const expanded = await run(sales, "(()=>{const source=document.querySelector('#results [data-analysis-row]'),arrow=source.querySelector('[data-expand-document]'),detail=source.nextElementSibling,q=detail.querySelectorAll('tbody tr:first-child td');return {source:source.classList.contains('analysis-expanded-source'),controls:arrow.getAttribute('aria-controls')===detail.id,next:detail.nextElementSibling.dataset.analysisRow,quantity:q[3].textContent,raw:q[3].title,delivered:q[5].textContent,residual:q[6].textContent,linkBorder:getComputedStyle(source.querySelector('[data-open-document]')).borderTopWidth,decoration:getComputedStyle(source.querySelector('[data-open-document]')).textDecorationLine}})()");
+        assert(expanded.source && expanded.controls); assert.equal(expanded.next, '1');
+        assert.equal(expanded.quantity, '3.390'); assert.equal(expanded.raw, '3390.0000000000005');
+        assert.equal(expanded.delivered, '3.738,9'); assert.equal(expanded.residual, '0');
+        assert.equal(expanded.linkBorder, '0px'); assert.equal(expanded.decoration, 'underline');
+        await run(sales, "document.querySelector('[data-expand-document]').click()");
+        assert(await run(sales, "!document.querySelector('.document-links-row,.analysis-expanded-source') && !document.querySelector('[data-expand-document]').hasAttribute('aria-controls')"));
+
         await run(sales, "document.querySelector('[data-open-document]').click()"); await wait(sales, "!!document.querySelector('.analysis-document-dialog .linked-document')");
         assert.equal(linkedCalls, linksBefore + 1, 'The link opens own lines and related offers');
-        for (const [width, height] of [[1500, 940], [1000, 680]]) {
-            sales.setContentSize(width, height); await run(sales, "new Promise(r=>setTimeout(r,100))");
-            const size = await run(sales, "(()=>{const r=document.querySelector('.analysis-document-dialog').getBoundingClientRect();return {width:r.width,height:r.height,w:innerWidth,h:innerHeight}})()"); assert(size.width >= size.w - 40 && size.height >= size.h - 40);
-            assert.equal(size.w, width); assert.equal(size.h, height);
-            fs.writeFileSync(path.join(dir, `order-${width}.png`), (await sales.webContents.capturePage()).toPNG());
+        await run(sales, "document.querySelector('.analysis-document-dialog .dialog-actions button').click()");
+        for (const theme of ['standard', 'bluearchive']) {
+            await sales.loadFile(path.join(root, 'dist-ts/pages/article-orders.html'), { query: { theme } });
+            await run(sales, "document.querySelector('#searchForm').requestSubmit()");
+            await wait(sales, "!!document.querySelector('[data-expand-document]')");
+            await run(sales, "document.querySelector('[data-expand-document]').click()");
+            await wait(sales, "!!document.querySelector('.document-links-row [data-own-lines] table')");
+            for (const [width, height] of [[1500, 940], [1000, 680]]) {
+                sales.setContentSize(width, height); await run(sales, "new Promise(r=>setTimeout(r,100))");
+                const bounds = await run(sales, "(()=>{const scroll=document.querySelector('#results').parentElement,content=document.querySelector('.analysis-document-content'),detail=document.querySelector('.document-links-row>td'),source=document.querySelector('.analysis-expanded-source>td');return {width:content.getBoundingClientRect().width,available:scroll.clientWidth,bottom:getComputedStyle(detail).borderBottomWidth,side:getComputedStyle(detail).borderLeftWidth,top:getComputedStyle(source).borderTopWidth,overflow:document.body.scrollWidth>innerWidth}})()");
+                assert(bounds.width <= bounds.available && bounds.width >= bounds.available - 40, JSON.stringify(bounds));
+                assert.equal(bounds.bottom, '2px'); assert.equal(bounds.side, '3px'); assert.equal(bounds.top, '2px'); assert(!bounds.overflow);
+                await run(sales, "document.querySelector('#results').parentElement.scrollLeft=700;new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)))");
+                const pinned = await run(sales, "(()=>{const r=document.querySelector('.analysis-document-content').getBoundingClientRect(),s=document.querySelector('#results').parentElement.getBoundingClientRect();return {left:r.left,right:r.right,sl:s.left,sr:s.right}})()");
+                assert(pinned.left>=pinned.sl && pinned.right<=pinned.sr, JSON.stringify(pinned));
+                fs.writeFileSync(path.join(dir, `expanded-${theme}-${width}.png`), (await sales.webContents.capturePage()).toPNG());
+            }
+            await run(sales, "document.querySelector('[data-open-document]').click()"); await wait(sales, "!!document.querySelector('.analysis-document-dialog .linked-document')");
+            const linkedQuantity = await run(sales, "document.querySelector('.analysis-document-dialog .linked-document td[data-filter-value]').textContent");
+            assert.equal(linkedQuantity, '3.390');
+            for (const [width, height] of [[1500, 940], [1000, 680]]) {
+                sales.setContentSize(width, height); await run(sales, "new Promise(r=>setTimeout(r,100))");
+                const size = await run(sales, "(()=>{const r=document.querySelector('.analysis-document-dialog').getBoundingClientRect();return {width:r.width,height:r.height,w:innerWidth,h:innerHeight}})()"); assert(size.width >= size.w - 40 && size.height >= size.h - 40);
+                assert.equal(size.w, width); assert.equal(size.h, height);
+                fs.writeFileSync(path.join(dir, `order-${theme}-${width}.png`), (await sales.webContents.capturePage()).toPNG());
+            }
         }
         assert.deepEqual(errors, []);
         console.log('OK: ERP six compact blocks, curated fields/details, readable quantities and exact tooltips/export, append retaining expanded details, scoped relations, complete typed Excel, permissions, two themes/sizes and Venduto own-line arrow vs combined document link.'); console.log('Artifacts: ' + dir);

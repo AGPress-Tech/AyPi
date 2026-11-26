@@ -42,6 +42,8 @@ app.whenReady().then(async () => {
         assert.equal(await run(win, "document.querySelector('#results .bom-inline-composition').textContent.includes('Istruzione di lavorazione')"), true);
         await run(win, "document.querySelector('#results .bom-inline-composition [data-expand-bom=SUB]').click()");
         assert.equal(await run(win, "document.querySelectorAll('#results .bom-inline-composition').length"), 2);
+        assert.equal(await run(win, "document.querySelectorAll('#results .analysis-expanded-detail').length"), 3);
+        assert.equal(await run(win, "document.querySelectorAll('#results .analysis-expanded-source').length"), 3);
         assert.equal(await run(win, "document.querySelector('#results .bom-inline-composition .bom-inline-composition').textContent.includes('ART-C')"), true);
         await run(win, "document.querySelector('#results .bom-inline-composition [data-open-bom=SUB]').click()");
         assert.equal(await run(win, "document.querySelector('#detailTitle').textContent"), 'Distinta SUB');

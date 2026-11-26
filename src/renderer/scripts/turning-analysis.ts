@@ -2122,8 +2122,8 @@ function renderTable(spec: TableSpec, reset = true) {
         all = sortedRows(spec),
         shown = all.slice(0, visibleRows),
         node = $<HTMLTableElement>("turningTable");
-    const tableRow = (row: Row, total = false) =>
-        `<tr ${total ? "" : `data-analysis-article="${esc(String(row.values.article || (row.dimension === "article" ? row.entity : "") || ""))}" data-analysis-customer-name="${esc(String(row.values.customer || (row.dimension === "customer" ? row.entity : "") || ""))}"`} class="${total ? "row-total" : row.depth ? "child-row" : ""}">${columns
+    const tableRow = (row: Row, total = false, index = -1) =>
+        `<tr ${total ? "" : `data-analysis-article="${esc(String(row.values.article || (row.dimension === "article" ? row.entity : "") || ""))}" data-analysis-customer-name="${esc(String(row.values.customer || (row.dimension === "customer" ? row.entity : "") || ""))}"`} class="${total ? "row-total" : row.depth ? `child-row${row.parent && expandedComparisons.has(row.parent) ? ` analysis-expanded-part${shown[index + 1]?.parent === row.parent ? "" : " analysis-expanded-end"}` : ""}` : spec.key === "comparisons" && ui.monthly && ui.grouping !== "month" && expandedComparisons.has(row.id) ? "analysis-expanded-source" : ""}">${columns
             .map((col, i) => {
                 const value = row.values[col.key],
                     display = format(value, col.kind),
@@ -2170,7 +2170,7 @@ function renderTable(spec: TableSpec, reset = true) {
                 return `<td ${contextField ? `data-analysis-${contextField === "article" ? "article" : "customer-name"}="${esc(contextValue)}"` : ""} class="${col.kind === "text" || col.kind === "date" ? "" : "numeric"} ${cls}" title="${esc(row.tooltips?.[col.key] || display)}">${cell}</td>`;
             })
             .join("")}</tr>`;
-    node.innerHTML = `<thead><tr>${columns.map((col) => `<th class="${col.kind === "text" || col.kind === "date" ? "" : "numeric"}">${esc(col.label)}</th>`).join("")}</tr></thead><tbody>${shown.map((row) => tableRow(row)).join("")}${!shown.length ? `<tr><td colspan="${columns.length}" class="empty-table">Nessuna registrazione con queste selezioni.</td></tr>` : ""}</tbody>${spec.total ? `<tfoot>${tableRow(spec.total, true)}</tfoot>` : ""}`;
+    node.innerHTML = `<thead><tr>${columns.map((col) => `<th class="${col.kind === "text" || col.kind === "date" ? "" : "numeric"}">${esc(col.label)}</th>`).join("")}</tr></thead><tbody>${shown.map((row, index) => tableRow(row, false, index)).join("")}${!shown.length ? `<tr><td colspan="${columns.length}" class="empty-table">Nessuna registrazione con queste selezioni.</td></tr>` : ""}</tbody>${spec.total ? `<tfoot>${tableRow(spec.total, true)}</tfoot>` : ""}`;
     const change = (next: SortCriterion[]) => {
         sortStates.set(spec.key, next);
         renderTable(spec);

@@ -10,7 +10,7 @@ import { requestAypiBackend } from "../file-manager/backend-client";
 import { getAddressEntry } from "../file-manager/address-book";
 import { excelDateCell, formatExcelNumbers } from "../analysis-excel";
 import { validateWorkspace } from "../analysis-ui-model";
-import { registerAnalysisTarget } from "../analysis-navigation";
+import { registerAnalysisTarget, invalidateAnalysisDestinations } from "../analysis-navigation";
 const execute = promisify(execFile);
 export function registerToolingIpc(
     mainWindow: BrowserWindow,
@@ -55,6 +55,7 @@ export function registerToolingIpc(
             return window;
         }
         actor = "";
+        invalidateAnalysisDestinations();
         const win = new BrowserWindow({
             width: 1520,
             height: 960,
@@ -89,6 +90,7 @@ export function registerToolingIpc(
             if (window === win) {
                 window = null;
                 actor = "";
+                invalidateAnalysisDestinations();
             }
         });
         win.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
@@ -154,11 +156,12 @@ export function registerToolingIpc(
                   if (!found)
                       throw Error("Seleziona un dipendente dall’elenco.");
                   actor = found;
+                  invalidateAnalysisDestinations();
                   return { actor, ...(await request("snapshot")) };
               }),
     );
     ipcMain.on("tooling-logout", (e) => {
-        if (owns(e)) actor = "";
+        if (owns(e)) { actor = ""; invalidateAnalysisDestinations(); }
     });
     ipcMain.on("tooling-close", (e) => {
         if (owns(e)) window?.close();

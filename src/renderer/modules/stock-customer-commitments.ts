@@ -1,5 +1,7 @@
 import { enhanceDetailTable } from "./analysis-detail-filters";
 import { continueTableOnScroll } from "./table-scroll-loader";
+import { openDocumentDetails } from "./document-details";
+import { formatDocumentQuantity } from "./document-links";
 const ipc = require("electron").ipcRenderer;
 const escape = (value: unknown) =>
     String(value ?? "").replace(
@@ -13,12 +15,7 @@ const escape = (value: unknown) =>
                 "'": "&#39;",
             })[char]!,
     );
-const num = (value: any) =>
-    value == null
-        ? "—"
-        : new Intl.NumberFormat("it-IT", { maximumFractionDigits: 20 }).format(
-              value,
-          );
+const num = formatDocumentQuantity;
 export async function renderStockCustomerCommitments(
     host: HTMLElement,
     article: string,
@@ -87,7 +84,7 @@ export async function renderStockCustomerCommitments(
                         keys
                             .map(
                                 (key) =>
-                                    `<td ${["customerName", "customerCode"].includes(key) ? `data-analysis-customer-code="${escape(row.customerCode)}"` : key === "documentNo" ? `data-analysis-document-id="${escape(row.documentId)}" data-analysis-document-kind="order" data-analysis-document-no="${escape(row.documentNo)}"` : ""} title="${escape(row[key])}" class="${numeric.has(key) ? "numeric" : ""}">${key === "documentNo" ? `<button type="button" data-open-order="${escape(row.documentId)}" data-order-no="${escape(row.documentNo)}">${escape(row.documentNo)}</button>` : numeric.has(key) ? num(row[key]) : escape(row[key] || "—")}</td>`,
+                                    `<td ${["customerName", "customerCode"].includes(key) ? `data-analysis-customer-code="${escape(row.customerCode)}"` : key === "documentNo" ? `data-analysis-document-id="${escape(row.documentId)}" data-analysis-document-kind="order" data-analysis-document-no="${escape(row.documentNo)}"` : ""} title="${escape(row[key])}" data-filter-value="${escape(row[key])}" class="${numeric.has(key) ? "numeric" : ""}">${key === "documentNo" ? `<button type="button" class="document-link" data-open-order="${escape(row.documentId)}" data-order-no="${escape(row.documentNo)}">${escape(row.documentNo)}</button>` : numeric.has(key) ? num(row[key]) : escape(row[key] || "—")}</td>`,
                             )
                             .join("") +
                         "</tr>",
@@ -105,25 +102,14 @@ export async function renderStockCustomerCommitments(
                 ),
         });
         enhanceDetailTable(table, "stock-current-customer-orders");
-        table.addEventListener("click", async (event) => {
+        table.addEventListener("click", (event) => {
             const button = (
                 event.target as HTMLElement
             ).closest<HTMLButtonElement>("[data-open-order]");
             if (!button) return;
-            const response = await ipc.invoke("analysis-navigate", {
-                target: "article-orders",
-                context: {
-                    documentKind: "order",
-                    documentId: button.dataset.openOrder,
-                    documentNo: button.dataset.orderNo,
-                },
-            });
-            if (!response.ok)
-                host.append(
-                    Object.assign(document.createElement("p"), {
-                        textContent: response.error,
-                    }),
-                );
+            const id = Number(button.dataset.openOrder);
+            if (Number.isSafeInteger(id) && id > 0)
+                openDocumentDetails(button, "order", id, button.dataset.orderNo || "");
         });
     } catch (error) {
         if (host.isConnected) {
