@@ -11,6 +11,7 @@ import {
 import { SortCriterion } from "../../main/modules/analysis-sorting";
 import { bindSortingHeaders, updateSortingBar } from "../modules/table-sorting";
 import { installAnalysisLinks } from "../modules/analysis-links";
+import { toggleDocumentLines, openDocumentDetails } from "../modules/document-details";
 import {
     contextFromAnalysisElement,
     toggleDocumentLinks,
@@ -368,7 +369,7 @@ function renderTable() {
                 columns
                     .map(
                         (col) =>
-                            `<td data-analysis-field="${col.key}" class="${["number", "money"].includes(col.kind) ? "numeric" : ""}" title="${escape(row[col.key])}">${col.key === (IS_OFFERS ? "offerNo" : "orderNo") ? `<button class="document-expand" data-expand-document="${index}" aria-expanded="false" title="${IS_OFFERS ? "Ordini collegati" : "Offerte collegate"}">▸</button>` : ""}${format(row, col)}</td>`,
+                            `<td data-analysis-field="${col.key}" class="${["number", "money"].includes(col.kind) ? "numeric" : ""}" title="${escape(row[col.key])}">${col.key === (IS_OFFERS ? "offerNo" : "orderNo") ? `<button class="document-expand" data-expand-document="${index}" aria-expanded="false" title="${IS_OFFERS ? "Ordini collegati" : "Voci dell’ordine"}">▸</button>` : ""}${col.key === (IS_OFFERS ? "offerNo" : "orderNo") ? `<button type="button" class="document-link" data-open-document="${index}">${format(row, col)}</button>` : format(row, col)}</td>`,
                     )
                     .join("") +
                 "</tr>"
@@ -603,6 +604,9 @@ installAnalysisLinks(
         const field = target.closest<HTMLElement>("[data-analysis-field]")
             ?.dataset.analysisField;
         if (field === "article") return { article: String(row.article) };
+        if (field === (IS_OFFERS ? "offerNo" : "orderNo")) return {
+            documentId: String(row[ID_KEY]), documentNo: String(row[field]), documentKind: IS_OFFERS ? "offer" : "order",
+        };
         if (
             (field === "customerCode" || field === "customerName") &&
             row.customerType !== "Contatto"
@@ -616,17 +620,21 @@ installAnalysisLinks(
     (message) => setStatus(message, true),
 );
 $("results").addEventListener("click", (event) => {
+    const link = (event.target as HTMLElement).closest<HTMLElement>("[data-open-document]");
+    if (link) {
+        const document = rows[Number(link.dataset.openDocument)];
+        if (document) openDocumentDetails(link, IS_OFFERS ? "offer" : "order", Number(document[ID_KEY]), String(document[IS_OFFERS ? "offerNo" : "orderNo"]));
+        return;
+    }
     const button = (event.target as HTMLElement).closest<HTMLElement>(
         "[data-expand-document]",
     );
     if (!button) return;
     const row = rows[Number(button.dataset.expandDocument)];
-    if (row)
-        toggleDocumentLinks(
-            button,
-            IS_OFFERS ? "offer" : "order",
-            Number(row[ID_KEY]),
-        );
+    if (row) {
+        if (IS_OFFERS) toggleDocumentLinks(button, "offer", Number(row[ID_KEY]));
+        else toggleDocumentLines(button, "order", Number(row[ID_KEY]), String(row.orderNo));
+    }
 });
 ipc.on("analysis-open-context", (_event: any, context: AnalysisContext) => {
     initFilters();

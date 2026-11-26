@@ -1,0 +1,49 @@
+.erp-window main { display: flex; flex: 1; flex-direction: column; min-height: 0; gap: 10px; padding: 12px }
+.erp-window #blocks { display: flex; flex-wrap: wrap; gap: 6px; flex: none }
+.erp-window #blocks button { padding: 7px 12px; font-size: 12px }
+.erp-window #blocks button.active { background: var(--ops-accent); color: white; border-color: var(--ops-accent) }
+.erp-window #views { flex: 1; min-height: 0 }
+.erp-view { height: 100%; display: grid; grid-template-columns: 264px minmax(0, 1fr); gap: 10px; min-width: 0; min-height: 0 }
+.erp-view[hidden] { display: none }
+.erp-view>.filter-panel { width: auto; min-width: 0; height: 100%; margin: 0 }
+.erp-view .filter-scroll { padding: 8px 14px }
+.erp-view .filter-scroll>label { display: grid; gap: 5px; margin-bottom: 10px; font-size: 12px }
+.erp-view .filter-scroll input, .erp-view .filter-scroll select { width: 100%; min-width: 0; padding: 7px 8px }
+.erp-results { display: flex; flex-direction: column; min-width: 0; min-height: 0; border: 1px solid var(--ops-line); border-radius: 11px; background: var(--ops-surface, white); overflow: hidden }
+.erp-results>.section-heading { display: flex; justify-content: space-between; align-items: center; padding: 10px 14px; gap: 10px; flex: none }
+.erp-results h2 { font-size: 17px; margin: 0 }
+.erp-results .columns-picker { position: relative; font-size: 12px }
+.erp-results .columns-picker>.column-picker { position: absolute; top: 100%; right: 0; z-index: 8; background: var(--ops-surface, white); border: 1px solid var(--ops-line); border-radius: 8px; padding: 10px; min-width: 230px; max-height: min(380px, 55vh); overflow: auto }
+.erp-results>.table-scroll { flex: 1; min-height: 0; overflow: auto }
+.erp-results [role=status] { margin: 0; padding: 5px 14px; font-size: 12px; min-height: 24px; flex: none }
+.erp-results [role=status]:empty { display: none }
+.erp-results [role=status].error { color: #b3261e }
+.erp-results>.results-footer { display: flex; align-items: center; gap: 12px; padding: 7px 14px; flex: none; font-size: 12px }
+.erp-context { font-size: 12px; padding: 5px 0; overflow-wrap: anywhere }
+.erp-context button { margin-top: 5px }
+.erp-table { width: max-content; min-width: 100%; border-spacing: 0; border-collapse: separate }
+.erp-table th, .erp-table td { border-right: 1px solid var(--ops-line); border-bottom: 1px solid var(--ops-line); padding: 7px 10px; font-size: 12px; white-space: nowrap; max-width: 500px; overflow: hidden; text-overflow: ellipsis }
+.erp-table thead { position: sticky; top: 0; z-index: 4; background: var(--ops-soft) }
+.erp-table th { background: var(--ops-soft) }
+.erp-table .erp-detail-row>td { white-space: normal; overflow: visible; max-width: none; padding: 12px; background: var(--ops-soft) }
+.erp-record-details { position: sticky; left: 12px; box-sizing: border-box; max-width: 100% }
+.erp-expand { width: 25px; height: 25px; padding: 0; margin-right: 6px; vertical-align: middle }
+.erp-record-fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 6px 18px; margin: 8px 0 }
+.erp-record-fields>div { min-width: 0; border-bottom: 1px solid var(--ops-line); padding: 5px 0 }
+.erp-record-fields dt { color: var(--ops-muted); font-size: 11px }
+.erp-record-fields dd { margin: 3px 0 0; font-size: 12px; white-space: pre-wrap; overflow-wrap: anywhere }
+.erp-record-details>details { margin: 8px 0; padding: 4px 0 }
+.erp-record-details>details>summary { padding: 6px 0; font-weight: 600; cursor: pointer }
+.erp-nested { border: 1px solid var(--ops-line); border-radius: 8px; padding: 8px; background: var(--ops-surface, white) }
+.erp-nested .erp-results { border: 0 }
+.erp-nested .table-scroll { max-height: 440px; min-height: 80px }
+.erp-child-filters { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; padding: 4px 0 8px; font-size: 12px }
+.erp-child-filters>label { display: grid; gap: 4px }
+.erp-child-filters input { min-width: 100px; max-width: 220px }
+.erp-preset-controls { display: grid; gap: 6px; padding: 8px 0 }
+.erp-view .analysis-information { padding: 0 14px 8px; max-height: 180px; overflow: auto }
+.erp-nested .analysis-information { padding: 6px 0 }
+.erp-information { font-size: 12px; line-height: 1.5 }
+.erp-window button.document-link { border: 0; padding: 0; background: transparent; text-decoration: underline; color: var(--ops-accent) }
+.erp-window .numeric { text-align: right; font-variant-numeric: tabular-nums }
+.erp-window .column-picker label { display: flex; align-items: center; gap: 7px }

@@ -331,10 +331,10 @@ export function history(
             ? db
                   .prepare(
                       multi
-                          ? "SELECT * FROM blocks_channels WHERE channel = ? AND start <= ? AND end >= ? ORDER BY start"
-                          : "SELECT * FROM blocks WHERE start <= ? AND end >= ? ORDER BY start",
+                          ? "SELECT * FROM blocks_channels WHERE channel = ? AND start >= COALESCE((SELECT MAX(start) FROM blocks_channels WHERE channel=? AND start<=?),?) AND start <= ? AND end >= ? ORDER BY start"
+                          : "SELECT * FROM blocks WHERE start >= COALESCE((SELECT MAX(start) FROM blocks WHERE start<=?),?) AND start <= ? AND end >= ? ORDER BY start",
                   )
-                  .iterate(...(multi ? [channel, end, start] : [end, start]))
+                  .iterate(...(multi ? [channel, channel, start, start, end, start] : [start, start, end, start]))
             : []) {
             if (
                 start <= block.start &&

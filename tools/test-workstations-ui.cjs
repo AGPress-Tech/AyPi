@@ -82,7 +82,7 @@ app.whenReady().then(async () => {
                 fs.writeFileSync(path.join(dir, `${theme}-admin-${width}.png`), (await win.webContents.capturePage()).toPNG());
             }
             await run("document.querySelector('[data-save]').click()");
-            await until("document.querySelector('[data-status]').textContent.includes('Profili salvati')");
+            await until("!document.querySelector('[data-save]').disabled && require('electron').ipcRenderer.invoke('workstations-get').then(result=>result.config.profiles.some(profile=>profile.name==='Officina'&&profile.rules['moduli.openFornitori']==='blocked'))");
             await get();
             assert.equal(latest.config.activeId, '', 'Saving profiles must not assign this PC');
             const profiles = latest.config.profiles.map(profile => profile.name === 'Officina' ? { ...profile, id: 'officina' } : profile);
@@ -105,7 +105,7 @@ app.whenReady().then(async () => {
                 fs.writeFileSync(path.join(dir, `${theme}-operator-${width}.png`), (await win.webContents.capturePage()).toPNG());
             }
             await run("document.querySelector('[data-select]').click()");
-            await until("document.querySelector('[data-status]').textContent.includes('solo su questo PC')");
+            await until("!document.querySelector('[data-select]').disabled && require('electron').ipcRenderer.invoke('workstations-get').then(result=>result.config.activeId==='officina')");
             assert.equal((await get()).config.activeId, 'officina');
             await run("document.querySelector('#workstationDialog [data-close]').click()");
             assert.equal(await run("[...document.querySelectorAll('.module-card')].find(b=>b.dataset.label==='Valutazione Fornitori').disabled"), true);

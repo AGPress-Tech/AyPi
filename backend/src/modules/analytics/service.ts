@@ -12,6 +12,8 @@ import {
     customerAnalysisQuery,
 } from "./customer-analysis";
 import { documentLinksQuery } from "./document-links";
+import { documentLinesQuery } from "./document-lines";
+import { readErpExplorer } from "./erp-explorer";
 import { bomAnalysisQuery } from "./bom-analysis";
 const sql = require("mssql");
 
@@ -236,8 +238,8 @@ export function createAnalyticsService(
     }
     const customerSearch = (input: unknown) => customerQuery(input, true),
         customerAnalysis = (input: unknown) => customerQuery(input, false);
-    async function documentLinks(input: unknown) {
-        const definition = documentLinksQuery(input);
+    async function readDocument(input: unknown, ownLines = false) {
+        const definition = ownLines ? documentLinesQuery(input) : documentLinksQuery(input);
         if (articleRequests >= 3)
             throw Error(
                 "Altre ricerche sono in corso. Riprovare tra qualche secondo.",
@@ -248,7 +250,7 @@ export function createAnalyticsService(
                 request = connection.request();
             request.input("id", driver.Int, definition.bindings[0].value);
             const result = await request.query(definition.sql);
-            if (result.recordset.length > 10000)
+            if (result.recordset.length > (ownLines ? 100000 : 10000))
                 throw Error("Troppi documenti collegati per questa ricerca.");
             return {
                 rows: result.recordset.map((row: any) =>
@@ -470,6 +472,12 @@ export function createAnalyticsService(
         }
     }
     return {
+        async erpExplorer(input: unknown) {
+            if (articleRequests >= 3) throw Error("Altre ricerche sono in corso. Riprovare tra qualche secondo.");
+            articleRequests++;
+            try { return await readErpExplorer(await pool(), driver, input); }
+            finally { articleRequests--; }
+        },
         stockAnalysis,
         stockCustomerCommitments,
         config,
@@ -478,7 +486,8 @@ export function createAnalyticsService(
         articleOffers,
         customerSearch,
         customerAnalysis,
-        documentLinks,
+        documentLinks: (input: unknown) => readDocument(input),
+        documentLines: (input: unknown) => readDocument(input, true),
         bomAnalysis,
         barContracts,
         supplierDirectory,

@@ -22,10 +22,11 @@ const num = (value: any) =>
 export async function renderStockCustomerCommitments(
     host: HTMLElement,
     article: string,
+    channel = "stock-analysis-customer-commitments",
 ) {
     host.textContent = "Lettura degli ordini aperti per cliente…";
     try {
-        const result = await ipc.invoke("stock-analysis-customer-commitments", {
+        const result = await ipc.invoke(channel, {
             article,
         });
         if (!result.ok) throw Error(result.error);
@@ -131,7 +132,7 @@ export async function renderStockCustomerCommitments(
             retry.type = "button";
             retry.textContent = "Riprova";
             retry.onclick = () =>
-                void renderStockCustomerCommitments(host, article);
+                void renderStockCustomerCommitments(host, article, channel);
             host.append(" ", retry);
         }
     }

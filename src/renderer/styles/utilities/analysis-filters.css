@@ -2,6 +2,18 @@
     --analysis-filter-width: 264px
 }
 
+.analysis-document-dialog { width: calc(100vw - 32px); height: calc(100vh - 32px); max-width: none; max-height: none; padding: 0; border: 1px solid var(--ops-line, #ddd); border-radius: 12px; color: var(--ops-ink, #222); background: var(--ops-surface, #fff) }
+.analysis-document-dialog[open] { display: flex; flex-direction: column }
+.analysis-document-dialog::backdrop { background: #0006 }
+.analysis-document-scroll { flex: 1; min-height: 0; overflow: auto; padding: 16px }
+.analysis-document-dialog .dialog-actions { padding: 10px 16px; border-top: 1px solid var(--ops-line, #ddd); display: flex; justify-content: flex-end }
+.analysis-document-details>h3 { margin: 8px 0; font-size: 14px }
+.analysis-document-details .table-scroll { max-height: 55vh; overflow: auto }
+.analysis-document-details table { border-collapse: separate; border-spacing: 0; width: 100% }
+.analysis-document-details th, .analysis-document-details td { border-right: 1px solid var(--ops-line, #ddd); border-bottom: 1px solid var(--ops-line, #ddd); padding: 7px 9px; white-space: nowrap }
+.analysis-document-details thead { position: sticky; top: 0; z-index: 3; background: var(--ops-soft, #faf7ef) }
+.analysis-document-details .document-connections { margin-top: 12px }
+
 .analysis-special-filters { order: 1; padding: 7px 12px; border-top: 1px solid var(--ops-line, #ddd); flex: none; min-width: 0 }
 .analysis-special-filters>[data-special-create] { width: 100% }
 .filters .analysis-special-filters { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 4px 0; border: 0 }

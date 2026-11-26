@@ -613,6 +613,11 @@ function renderTable() {
     });
 }
 function renderDue() {
+    const expanded = new Set(Array.from($("dueGroups").querySelectorAll<HTMLDetailsElement>("details[open][data-due-machine]"), node => node.dataset.dueMachine));
+    const positions = new Map(Array.from($("dueGroups").querySelectorAll<HTMLDetailsElement>("[data-due-machine]"), node => {
+        const table = node.querySelector<HTMLElement>(".table-scroll");
+        return [node.dataset.dueMachine, { top: table?.scrollTop || 0, left: table?.scrollLeft || 0 }] as const;
+    }));
     const due = currentRows(),
         allMachines = snapshot.machines
             .filter(
@@ -644,6 +649,11 @@ function renderDue() {
                         .join("")}</section>`,
             )
             .join("") || "<p>Nessuna macchina corrisponde ai filtri.</p>";
+    $("dueGroups").querySelectorAll<HTMLDetailsElement>("[data-due-machine]").forEach(node => {
+        node.open = expanded.has(node.dataset.dueMachine);
+        const table = node.querySelector<HTMLElement>(".table-scroll"), position = positions.get(node.dataset.dueMachine);
+        if (table && position) { table.scrollTop = position.top; table.scrollLeft = position.left; }
+    });
 }
 function chartSelection(
     dimension: string,
@@ -928,16 +938,24 @@ function render() {
             `<h3>Verifiche dati (${snapshot.issues.length})</h3><ul>${snapshot.issues.map((i) => `<li>${esc(i)}</li>`).join("")}</ul><p>${snapshot.plans.filter((p) => p.frequencyMonths == null).length} manutenzioni previste senza frequenza: non generano avvisi.</p>`;
     }
 }
-async function load() {
-    if (busy) return;
+async function load(background = false) {
+    const dialogOpen = () => !!document.querySelector("dialog[open]");
+    const signature = (value: any) => JSON.stringify([value.machines, value.plans, value.records, value.attachments, value.due, value.issues, value.importInfo, value.today]);
+    if (busy || (background && dialogOpen())) return;
     busy = true;
     $<HTMLButtonElement>("refresh").disabled = true;
-    message("Aggiornamento manutenzioni…");
+    if (!background) message("Aggiornamento manutenzioni…");
     try {
-        snapshot = await api("snapshot");
-        filterControls();
+        const next = await api("snapshot");
+        if (background && (dialogOpen() || signature(next) === signature(snapshot))) return;
+        const positions = Array.from(document.querySelectorAll<HTMLElement>(".table-scroll, #dueGroups, #dashboard, #infoPanel, main, .view"), node => ({ node, top: node.scrollTop, left: node.scrollLeft }));
+        const windowPosition = { top: window.scrollY, left: window.scrollX };
+        snapshot = next;
+        if (!background) filterControls();
         render();
-        message();
+        positions.forEach(({ node, top, left }) => { node.scrollTop = top; node.scrollLeft = left; });
+        window.scrollTo(windowPosition.left, windowPosition.top);
+        if (!background) message();
     } catch (e) {
         message((e as Error).message, true);
     } finally {
@@ -1751,7 +1769,7 @@ $("accessImportApply").onclick = async () => {
 };
 // Refresh on return to the module; drafts are never overwritten by a background refresh.
 window.addEventListener("focus", () => {
-    if (actor && !$<HTMLDialogElement>("editDialog").open) void load();
+    if (actor) void load(true);
 });
 setInterval(() => {
     if (
@@ -1760,7 +1778,7 @@ setInterval(() => {
         !$<HTMLDialogElement>("editDialog").open &&
         !busy
     )
-        void load();
+        void load(true);
 }, 60000);
 $<HTMLDialogElement>("loginDialog").showModal();
 void loginEmployees();

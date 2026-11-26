@@ -1,5 +1,6 @@
 import { registerLoginPreferencesIpc } from "./login-preferences";
 import { registerStockAnalysisIpc } from "./stock-analysis/ipc";
+import { registerErpExplorerIpc } from "./erp-explorer/ipc";
 import { registerToolingIpc } from "./tooling/ipc";
 import { registerSupplierEvaluationIpc } from "./supplier-evaluation/ipc";
 import { registerProcessingCyclesIpc } from "./processing-cycles/ipc";
@@ -2575,6 +2576,7 @@ function setupFileManager(mainWindow) {
     registerBomAnalysisIpc(mainWindow, getInterfaceIconPath);
     registerBarContractsIpc(mainWindow, getInterfaceIconPath);
     registerStockAnalysisIpc(mainWindow, getInterfaceIconPath);
+    registerErpExplorerIpc(mainWindow, getInterfaceIconPath);
     registerLoginPreferencesIpc();
 
     registerFilesystemDialogIpc({

@@ -130,8 +130,10 @@ const pending = new Map<
         resolve: (value: any) => void;
         reject: (error: Error) => void;
         timer: NodeJS.Timeout;
+        command: string;
     }
 >();
+const sharedReads = new Map<string, Promise<any>>();
 const frameListeners = new Set<(frame: any) => void>();
 let latestFrame: any = null;
 export function subscribeFornoFrames(listener: (frame: any) => void) {
@@ -146,7 +148,7 @@ function unavailable(message: string) {
     return new HttpError(503, message, { code: "FORNO_UNAVAILABLE" });
 }
 
-export function fornoRequest(
+function requestArchive(
     command: string,
     parameters: Record<string, unknown> = {},
 ): Promise<any> {
@@ -154,7 +156,11 @@ export function fornoRequest(
         return Promise.reject(
             unavailable(lastError || "Acquisizione forno non attiva"),
         );
-    if (pending.size >= 8)
+    const lane = (name: string) => ["history", "history_binary"].includes(name) ? "history"
+        : name === "analysis" ? "analysis"
+        : ["sample", "messages", "phase_info"].includes(name) ? "interactive" : "control";
+    // Reserve capacity for interactive/control requests when several PCs read history.
+    if (pending.size >= 32 || Array.from(pending.values()).filter(request => lane(request.command) === lane(command)).length >= 8)
         return Promise.reject(
             new HttpError(429, "Troppe richieste forno: riprovare tra poco"),
         );
@@ -165,8 +171,8 @@ export function fornoRequest(
             pending.delete(id);
             reject(unavailable("Timeout archivio forno"));
         }, 15000);
-        pending.set(id, { resolve, reject, timer });
-        target.send({ ...parameters, id, command }, (error) => {
+        pending.set(id, { resolve, reject, timer, command });
+        target.send({ ...parameters, id, command, deadlineMs: Date.now() + 15000 }, (error) => {
             if (error) {
                 clearTimeout(timer);
                 pending.delete(id);
@@ -174,6 +180,17 @@ export function fornoRequest(
             }
         });
     });
+}
+
+export function fornoRequest(command: string, parameters: Record<string, unknown> = {}): Promise<any> {
+    if (!["history", "history_binary", "sample", "messages", "phase_info", "analysis"].includes(command))
+        return requestArchive(command, parameters);
+    const key = JSON.stringify([command, parameters]);
+    const existing = sharedReads.get(key);
+    if (existing) return existing;
+    const promise = requestArchive(command, parameters).finally(() => sharedReads.delete(key));
+    sharedReads.set(key, promise);
+    return promise;
 }
 
 export async function getFornoStatus() {

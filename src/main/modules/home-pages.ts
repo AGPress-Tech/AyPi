@@ -266,9 +266,9 @@ export function createHomePages(
                 requiresAdmin: true,
             },
             {
-                label: "Analisi commerciali",
+                label: "Analisi AGPress",
                 description:
-                    "Venduto per articolo, offerte e analisi per cliente",
+                    "Gestionale, anagrafiche, documenti e magazzino",
                 channel: "commercial-analysis-open",
                 invoke: true,
             },

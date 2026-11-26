@@ -26,6 +26,10 @@ async function main() {
         db.pragma("query_only = ON");
         parentPort!.on("message", (request) => {
             try {
+                if (request.deadlineMs && Date.now() >= request.deadlineMs) {
+                    parentPort!.postMessage({ id: request.id, error: "Richiesta archivio forno scaduta" });
+                    return;
+                }
                 let result: any =
                     request.command === "phase_info"
                         ? phaseInfo(
@@ -105,15 +109,24 @@ async function main() {
     const queries = new Worker(__filename, {
         workerData: { dbPath: config.dbPath, intervalMs: config.intervalMs },
     });
+    // Cursor samples and messages must not wait behind historical analyses.
+    const interactiveQueries = new Worker(__filename, {
+        workerData: { dbPath: config.dbPath, intervalMs: config.intervalMs },
+    });
+    const analysisQueries = new Worker(__filename, {
+        workerData: { dbPath: config.dbPath, intervalMs: config.intervalMs },
+    });
     const send = (value: unknown) => {
         if (process.connected) process.send!(value);
     };
-    queries.on("message", send);
-    queries.on("error", (error) => {
-        state.error = `Archivio storico: ${error.message}`;
-        send({ type: "fatal", error: state.error });
-        void stop();
-    });
+    for (const queryWorker of [queries, interactiveQueries, analysisQueries]) {
+        queryWorker.on("message", send);
+        queryWorker.on("error", (error) => {
+            state.error = `Archivio storico: ${error.message}`;
+            send({ type: "fatal", error: state.error });
+            void stop();
+        });
+    }
     let stopping = false,
         timer: NodeJS.Timeout | null = null,
         active: Promise<void> = Promise.resolve();
@@ -218,7 +231,7 @@ async function main() {
         await Promise.all([active, eventActive]);
         reader.close();
         eventReader.close();
-        await queries.terminate();
+        await Promise.all([queries, interactiveQueries, analysisQueries].map(worker => worker.terminate()));
         archive.close();
         if (id !== undefined) send({ id, result: { stopped: true } });
         if (process.connected) process.disconnect();
@@ -240,7 +253,9 @@ async function main() {
             request.command === "messages" ||
             request.command === "phase_info"
         ) {
-            queries.postMessage(request);
+            const queryWorker = request.command === "analysis" ? analysisQueries
+                : ["sample", "messages", "phase_info"].includes(request.command) ? interactiveQueries : queries;
+            queryWorker.postMessage(request);
             return;
         }
         if (

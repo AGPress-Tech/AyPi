@@ -44,7 +44,8 @@ app.whenReady().then(async () => {
     const open = async (target, context) => { const result = await run(main, `require('electron').ipcRenderer.invoke('analysis-navigate',${JSON.stringify({ target, context })})`); assert.equal(result.ok, true, result.error); };
     try {
         assert.equal((await run(main, "require('electron').ipcRenderer.invoke('commercial-analysis-open')")).ok, true);
-        await until(() => !!find('commercial-analysis.html')); const hub = find('commercial-analysis.html'); await until(() => run(hub, "document.querySelectorAll('[data-analysis]').length===6"));
+        await until(() => !!find('commercial-analysis.html')); const hub = find('commercial-analysis.html'); await until(() => run(hub, "document.querySelectorAll('[data-analysis]').length===7"));
+        assert.equal(await run(hub, "document.querySelector('h1').textContent"), 'Analisi AGPress');
         await run(hub, "new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)))"); const screenshot = await hub.webContents.capturePage(); fs.writeFileSync(path.join(dir, 'hub.png'), screenshot.toPNG());
 
         await run(hub, "document.querySelector('[data-analysis=article-orders]').click()"); await until(() => !!find('article-orders.html'));
@@ -91,15 +92,17 @@ app.whenReady().then(async () => {
         await until(() => nativeMenu.some(item => item.label.includes('cliente in'))); assert(nativeMenu.every(item => !item.label.includes('articolo'))); nativeMenu.find(item => item.label.includes('cliente in')).click();
         await until(() => !!find('customer-analysis.html')); const customer = find('customer-analysis.html'); await until(() => run(customer, "document.querySelectorAll('#kpis .kpi').length===6 && !document.querySelector('#refresh').disabled"));
         await run(customer, "document.querySelector('[data-view=documents]').click();document.querySelector('[data-expand-document=\"order:101\"]').click()");
-        await until(() => run(customer, "document.querySelectorAll('.document-links-row .linked-documents-table tbody tr').length===2"));
-        assert((await run(customer, "document.querySelector('.document-links-row').textContent")).includes('26/OFF-1'));
-        await run(customer, "document.querySelector('.document-links-row [data-linked-index]').click()");
+        await until(() => run(customer, "document.querySelectorAll('.customer-document-lines table tbody tr').length===2"));
+        await run(customer, "document.querySelector('.customer-document-lines .document-connections').open=true");
+        await until(() => run(customer, "document.querySelectorAll('.customer-document-lines .linked-documents-table tbody tr').length===2"));
+        assert((await run(customer, "document.querySelector('.customer-document-lines').textContent")).includes('26/OFF-1'));
+        await run(customer, "document.querySelector('.customer-document-lines [data-linked-index]').click()");
         await until(() => !!find('article-offers.html')); const quoted = find('article-offers.html');
         await until(() => run(quoted, "document.querySelectorAll('#results [data-analysis-row]').length===2"));
         assert(calls.some(c => c.endpoint.endsWith('article-offers') && c.filters.offers?.[0]?.value === '26/OFF-1' && c.filters.documentId === 201 && !c.filters.articles.length));
         await run(quoted, "document.querySelector('[data-expand-document]').click()");
         await until(() => run(quoted, "document.querySelectorAll('.document-links-row .linked-documents-table tbody tr').length===2"));
-        await run(customer, "document.querySelector('[data-document=\"order:101\"]').click();document.querySelector('.document-connections>summary').click()");
+        await run(customer, "document.querySelector('[data-document=\"order:101\"]').click();document.querySelector('#documentDialog .document-connections').open=true");
         await until(() => run(customer, "document.querySelectorAll('#documentDialog .linked-documents-table tbody tr').length===2"));
         await open('article-orders', { article: 'ART-B' }); assert.equal(find('article-orders.html').id, soldId);
         await until(() => run(sold, "document.querySelector('[data-key=articles] .value').value==='ART-B' && document.querySelector('#results').textContent.includes('ART-B')"));

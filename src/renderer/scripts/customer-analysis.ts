@@ -2192,7 +2192,7 @@ $("content").addEventListener("click", (event) => {
             document.getElementById(id) as HTMLTableElement,
             `customer-document:${source[0].kind}`,
         );
-        const connections = cell.querySelector("details")!;
+        const connections = cell.querySelector<HTMLDetailsElement>(".document-connections")!;
         let requested = false;
         connections.addEventListener("toggle", () => {
             if (connections.open && !requested) {

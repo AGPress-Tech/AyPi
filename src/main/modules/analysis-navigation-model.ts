@@ -9,9 +9,13 @@ export const ANALYSIS_TARGETS = [
     "supplier-evaluation",
     "processing-cycles",
     "tooling",
+    "erp-explorer",
 ] as const;
 export type AnalysisTarget = (typeof ANALYSIS_TARGETS)[number];
 export type AnalysisContext = {
+    purchaseOrderId?: string;
+    productionOrderId?: string;
+    contractId?: string;
     article?: string;
     bom?: string;
     customerCode?: string;
@@ -39,6 +43,9 @@ export function validateAnalysisContext(value: unknown): AnalysisContext {
                 "documentId",
                 "documentNo",
                 "documentKind",
+                "purchaseOrderId",
+                "productionOrderId",
+                "contractId",
             ].includes(key) ||
             typeof item !== "string" ||
             !item.trim() ||
@@ -51,7 +58,7 @@ export function validateAnalysisContext(value: unknown): AnalysisContext {
     if (
         (clean.documentKind &&
             !["order", "offer"].includes(clean.documentKind)) ||
-        (clean.documentId && !/^\d{1,10}$/.test(clean.documentId))
+        [clean.documentId, clean.purchaseOrderId, clean.productionOrderId, clean.contractId].some(id => id && !/^\d{1,10}$/.test(id))
     )
         throw Error("Documento non valido.");
     return clean;

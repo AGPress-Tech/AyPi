@@ -43,6 +43,14 @@ app.whenReady().then(async () => {
         assert.equal(await run("document.querySelectorAll('#maintenanceTable tbody tr').length"), 1);
         await run("document.querySelector('[data-special-delete]').click();document.querySelector('[data-view=dashboard]').click();document.querySelector('.advanced-filters').open=false;document.querySelector('#customFilters').open=false");
         await run("document.querySelector('[data-view=due]').click()"); assert.equal(await run("document.querySelectorAll('[data-due-machine]').length"), 2); assert.equal(await run("document.querySelectorAll('[data-due-plan]').length"), 1);
+        await run("window.originalDue=document.querySelector('[data-due-machine=M1]');originalDue.open=true;window.dispatchEvent(new Event('focus'))");
+        await until("!document.querySelector('#refresh').disabled");
+        assert(await run("originalDue===document.querySelector('[data-due-machine=M1]') && originalDue.open"), 'Unchanged automatic refresh must retain the original expanded DOM');
+        const machineBefore = service.maintenanceSnapshot().machines.find(m => m.id === 'M1');
+        service.saveMaintenanceEntity('machine', { ...machineBefore, description: 'Transfer aggiornato' }, 'Configuratore');
+        await run("window.dispatchEvent(new Event('focus'))");
+        await until("!document.querySelector('#refresh').disabled && document.querySelector('[data-due-machine=M1]').textContent.includes('Transfer aggiornato')");
+        assert(await run("document.querySelector('[data-due-machine=M1]').open"), 'Changed background data must retain expanded machines');
         let menu = []; Menu.buildFromTemplate = items => ({ popup() { menu = items } });
         await run("document.querySelector('[data-due-machine=M1]').open=true;document.querySelector('[data-due-plan]').dispatchEvent(new MouseEvent('contextmenu',{bubbles:true,cancelable:true}))");
         for (let i = 0; !menu.length && i < 100; i++)await new Promise(r => setTimeout(r, 30)); assert.equal(menu.length, 1); menu[0].click();

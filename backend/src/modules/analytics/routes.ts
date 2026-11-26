@@ -17,6 +17,7 @@ import {
     validateCustomerSearch,
 } from "./customer-analysis";
 import { validateDocumentLinkRequest } from "./document-links";
+import { validateExplorerRequest } from "./erp-explorer";
 import { validateBomRequest } from "./bom-analysis";
 import { validateBarContractsRequest } from "./bar-contracts";
 const compress = promisify(gzip);
@@ -26,6 +27,22 @@ export function registerAnalyticsRoutes(
     router: Router,
     service = analyticsService,
 ) {
+    router.register("POST", "/api/erp/explorer", async (req, res) => {
+        let input;
+        try { input = validateExplorerRequest(await readJsonBody(req)); }
+        catch (error) { sendJson(res, 400, { error: (error as Error).message }); return; }
+        res.setHeader("Cache-Control", "no-store");
+        try { sendJson(res, 200, await service.erpExplorer(input)); }
+        catch { sendJson(res, 503, { error: "Lettura del blocco ERP non riuscita. Verificare la disponibilità del backend e della tabella nel gestionale." }); }
+    });
+    router.register("POST", "/api/erp/document-lines", async (req, res) => {
+        let input;
+        try { input = validateDocumentLinkRequest(await readJsonBody(req)); }
+        catch (error) { sendJson(res, 400, { error: (error as Error).message }); return; }
+        res.setHeader("Cache-Control", "no-store");
+        try { sendJson(res, 200, await service.documentLines(input)); }
+        catch { sendJson(res, 503, { error: "Lettura delle righe del documento non riuscita. Riprovare." }); }
+    });
     router.register(
         "POST",
         "/api/erp/stock-customer-commitments",

@@ -37,16 +37,18 @@ export function specialRecordMatcher(input: unknown, fields: { key: string; kind
     return specialFilterMatcher(input as SpecialFilter[], fields.map(c => ({ ...c, label: c.key })));
 }
 export function specialFilterSql(
-    input: unknown, allowed: readonly string[],
+    input: unknown, allowed: readonly string[] | readonly SpecialColumn[],
     bind: (value: unknown, type: "text" | "number" | "date" | "int") => string,
+    dateOnly = false,
 ) {
-    const fields = new Map(columns(allowed).map(c => [c.key, c]));
+    const catalog = allowed.map(value => typeof value === "string" ? columns([value])[0] : value);
+    const fields = new Map(catalog.map(c => [c.key, c]));
     const invert = (sql: string) => `CASE WHEN ${sql} THEN 1 ELSE 0 END=0`;
     function condition(node: SpecialCondition): string {
         if ("join" in node) return "(" + node.conditions.map(condition).join(node.join === "all" ? " AND " : " OR ") + ")";
         const field = fields.get(node.field)!;
         // Identifiers come exclusively from the server's column allowlist.
-        const column = `[${field.key}]`, text = field.kind === "text";
+        const column = dateOnly && field.kind === "date" ? `CONVERT(date,[${field.key}])` : `[${field.key}]`, text = field.kind === "text";
         const missing = text ? `(${column} IS NULL OR LTRIM(RTRIM(${column}))='')` : `${column} IS NULL`;
         if (node.op === "empty") return missing;
         if (node.op === "present") return invert(missing);
@@ -67,7 +69,7 @@ export function specialFilterSql(
         }
         return ["not", "different"].includes(node.op) ? invert(sql) : sql;
     }
-    return validateSqlSpecialFilters(input, allowed)
+    return validateSpecialFilters(input, catalog)
         .filter(filter => filter.enabled !== false)
         .map(filter => filter.exclude ? invert(condition(filter.condition)) : condition(filter.condition));
 }

@@ -146,6 +146,8 @@ export async function relatedAnalysisMenuItems(
         if (target === source) return;
         candidates.push({ target, label, context: value });
     };
+    if (context.article || context.bom || context.customerCode || context.supplierCode || context.documentId || context.purchaseOrderId || context.productionOrderId || context.contractId)
+        add("erp-explorer", "Mostra nel gestionale · Analisi AGPress", context);
     if (context.article) {
         add("bar-contracts", "Mostra contratti barra collegati all’articolo", {
             article: context.article,
@@ -252,12 +254,15 @@ export async function relatedAnalysisMenuItems(
             supplierCode: context.supplierCode,
         });
     }
-    const available = await Promise.all(
-        candidates.map(async (item) => ({
-            item,
-            exists: await destinationExists(item.target, item.context),
-        })),
-    );
+    const available: { item: typeof candidates[number]; exists: boolean }[] = [];
+    // Avoid making valid destinations disappear because all ERP probes start
+    // together and exceed the backend's concurrent-search limit.
+    for (let index = 0; index < candidates.length; index += 2) {
+        if (sender.isDestroyed()) return [];
+        available.push(...await Promise.all(candidates.slice(index, index + 2).map(async item => ({
+            item, exists: await destinationExists(item.target, item.context),
+        }))));
+    }
     if (sender.isDestroyed()) return [];
     for (const { item, exists } of available)
         if (exists)
@@ -317,7 +322,7 @@ export function registerAnalysisNavigation(
             minWidth: 920,
             minHeight: 600,
             show: false,
-            title: "AyPi · Analisi commerciali",
+            title: "AyPi · Analisi AGPress",
             icon: icon(),
             backgroundColor: "#f2f8fc",
             webPreferences: { nodeIntegration: true, contextIsolation: false },
@@ -368,6 +373,15 @@ export function registerAnalysisNavigation(
                     : (error as Error).message,
             };
         }
+    });
+    ipcMain.handle("analysis-document-lines", async (event, payload) => {
+        if (![...modules.values()].some(m => m.owns(event)))
+            return { ok: false, error: "Finestra non autorizzata." };
+        try {
+            if (!payload || !["order", "offer"].includes(payload.kind) || !Number.isInteger(payload.id) || payload.id < 1 || payload.id > 2147483647)
+                throw Error("Documento non valido.");
+            return { ok: true, ...(await requestAypiBackend("/api/erp/document-lines", { method: "POST", body: { kind: payload.kind, id: payload.id } })) };
+        } catch (error) { return { ok: false, error: (error as Error).message }; }
     });
     ipcMain.handle("analysis-navigate", async (event, payload) => {
         try {

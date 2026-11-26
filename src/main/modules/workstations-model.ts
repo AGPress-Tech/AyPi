@@ -70,6 +70,7 @@ for (const [target, label] of Object.entries({
     "bom-analysis": "BoM e Articoli",
     "bar-contracts": "Situazione Contratti Barra in Corso",
     "stock-analysis": "Giacenze",
+    "erp-explorer": "Esplora gestionale",
 })) {
     stationCatalog.push({
         id: target,
