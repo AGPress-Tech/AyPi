@@ -1,5 +1,6 @@
 import {
     validateCalibrationSystem,
+    calibrationRules,
     calibrationCategoryKey,
     categoryCalibrationSystem,
 } from "./calibration-system";
@@ -182,6 +183,13 @@ export function saveMeasurement(kind: Kind, input: any, actor: string) {
                     throw Error(
                         "Sistema non disponibile: sceglierne uno attivo.",
                     );
+                if (
+                    !frozen &&
+                    !Object.prototype.hasOwnProperty.call(calibrationRules, system.rule)
+                )
+                    throw Error(
+                        "Aggiornare il sistema di taratura scegliendo Media oppure Ogni rilevazione prima di registrare nuove tarature.",
+                    );
                 if (input.systemRevision !== system.revision)
                     throw conflict(
                         "Il sistema di taratura è cambiato. Ricaricare il sistema prima di compilare le misure.",
@@ -334,20 +342,6 @@ export function deleteMeasurement(kind: Kind, input: any, actor: string) {
     if (input.revision !== current.revision)
         throw conflict("Scheda modificata: aggiorna prima di eliminarla.");
     if (
-        kind === "system" &&
-        (entities("instrument", true).some(
-            (i) =>
-                calibrationCategoryKey(i.category) ===
-                calibrationCategoryKey(current.category),
-        ) ||
-            entities("calibration", true).some(
-                (r) => r.systemId === current.id,
-            ))
-    )
-        throw badRequest(
-            "Il sistema è utilizzato: disattivarlo per conservare i collegamenti e lo storico.",
-        );
-    if (
         kind === "instrument" &&
         entities("calibration", true).some((r) => r.instrumentId === current.id)
     )
@@ -371,7 +365,14 @@ export function deleteMeasurement(kind: Kind, input: any, actor: string) {
             );
     }
     return runSqliteTransaction(() =>
-        write(kind, current.id, current, actor, current, true),
+        write(
+            kind,
+            current.id,
+            kind === "system" ? { ...current, active: false } : current,
+            actor,
+            current,
+            true,
+        ),
     );
 }
 export function measurementAudit(instrumentId: string) {

@@ -417,6 +417,7 @@ body .aypi-filter-panel>.analysis-filter-presets {
 }
 
 .analysis-detail-tools {
+    position: relative;
     display: flex;
     align-items: end;
     gap: 8px;
@@ -468,12 +469,32 @@ body .aypi-filter-panel>.analysis-filter-presets {
 }
 
 .analysis-detail-filters .analysis-filter-presets {
-    margin-top: 8px
+    margin: 0;
+    flex: 0 0 auto
 }
 
 .analysis-detail-filters .analysis-filter-presets summary {
     cursor: pointer;
-    font-size: 12px
+    font-size: 11px;
+    min-height: 30px;
+    box-sizing: border-box;
+    padding: 5px 8px;
+    border: 1px solid var(--ops-line, #ddd);
+    border-radius: 6px
+}
+
+.analysis-detail-preset-panel {
+    position: absolute;
+    top: calc(100% + 6px);
+    right: 0;
+    width: min(440px, 100%);
+    box-sizing: border-box;
+    z-index: 50;
+    padding: 10px;
+    border: 1px solid var(--ops-line, #ddd);
+    border-radius: 8px;
+    background: var(--ops-soft, #f4f7fa);
+    box-shadow: 0 8px 24px #0002
 }
 
 .analysis-detail-filters .analysis-preset-controls {

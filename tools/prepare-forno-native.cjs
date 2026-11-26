@@ -26,11 +26,25 @@ async function main() {
     name,
     "better_sqlite3.node",
   );
+  const verifyBinding = () => {
+    execFileSync(electron, ["-e", `
+      const Database = require('better-sqlite3');
+      const db = new Database(':memory:', { nativeBinding: process.env.AYPI_VERIFY_SQLITE_BINDING });
+      if (db.prepare('SELECT 1 AS ok').get().ok !== 1) throw Error('SQLite non funzionante');
+      db.close();
+    `], {
+      cwd: root,
+      env: { ...env, AYPI_VERIFY_SQLITE_BINDING: destination },
+      windowsHide: true,
+      stdio: "pipe",
+    });
+  };
   if (
     fs.existsSync(destination) &&
     fs.existsSync(destination + ".version") &&
     fs.readFileSync(destination + ".version", "utf8") === version
   ) {
+    verifyBinding();
     console.log("SQLite Electron pronto:", name);
     return;
   }
@@ -62,6 +76,7 @@ async function main() {
     throw new Error("Binario SQLite mancante nel rilascio ufficiale");
   fs.mkdirSync(path.dirname(destination), { recursive: true });
   fs.writeFileSync(destination, binary);
+  verifyBinding();
   fs.writeFileSync(destination + ".version", version);
   console.log(
     "SQLite Electron preparato:",

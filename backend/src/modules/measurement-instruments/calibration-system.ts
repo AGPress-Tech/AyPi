@@ -1,9 +1,10 @@
 export const calibrationRules = {
     mean: "Media entro nominale ± tolleranza",
-    spread: "Intervallo media ± k·s entro nominale ± tolleranza",
     all: "Ogni rilevazione entro nominale ± tolleranza",
-    historical: "Limiti storici calibri, con s su tutte le rilevazioni",
 };
+export function calibrationRuleLabel(rule: string) {
+    return calibrationRules[rule] || "Criterio storico archiviato";
+}
 export const calibrationCategoryKey = (category: unknown) =>
     String(category || "")
         .normalize("NFKC")
@@ -71,13 +72,10 @@ export function validateCalibrationSystem(v: any) {
         if (
             !Number.isInteger(count) ||
             count < 1 ||
-            count > 100 ||
-            (["spread", "historical"].includes(v.rule) &&
-                p.kind === "numeric" &&
-                count < 2)
+            count > 100
         )
             throw Error(
-                "Rilevazioni non valide: i criteri statistici richiedono almeno due letture.",
+                "Indicare da 1 a 100 rilevazioni per punto.",
             );
         const pointUnit =
             p.kind === "numeric" ? text(p.unit || unit, 30, true) : "";
@@ -97,7 +95,9 @@ export function validateCalibrationSystem(v: any) {
                     ? measurementNumber(p.nominal, true)
                     : null,
             unit: pointUnit,
-            tolerance: p.kind === "numeric" ? nonnegative(p.tolerance) : null,
+            tolerance: p.kind === "numeric"
+                ? nonnegative(p.tolerance) ?? (pointUnit === unit ? tolerance : null)
+                : null,
             repetitions: count,
             repetitionsInherited: p.repetitions == null || p.repetitions === "",
         };
@@ -112,14 +112,9 @@ export function validateCalibrationSystem(v: any) {
         unit,
         tolerance,
         repetitions,
-        coverage: nonnegative(v.coverage ?? 2, true),
-        limitConstant: nonnegative(v.limitConstant ?? 50, true),
-        limitSlope: nonnegative(v.limitSlope ?? 0.1, true),
-        limitScale: nonnegative(v.limitScale ?? 0.001, true),
-        marginScale: nonnegative(v.marginScale ?? 0.001, true),
         strict: v.strict === true,
         points,
-        calculationVersion: 1,
+        calculationVersion: 2,
     };
 }
 /** Missing readings stay missing; statistics always use all entered readings. */
@@ -204,6 +199,8 @@ export function evaluateCalibrationSystem(
             p.tolerance ??
             (p.unit === toleranceUnit ? tolerance : null) ??
             (p.unit === system.unit ? system.tolerance : null);
+        // Legacy formulas remain available for frozen reports only. New system
+        // definitions and new reports accept mean/all without a coverage factor.
         const width =
             system.rule === "historical"
                 ? (system.limitConstant + system.limitSlope * p.nominal) *
@@ -213,11 +210,11 @@ export function evaluateCalibrationSystem(
             acceptanceUpper = width == null ? null : p.nominal + width;
         const statistical = ["spread", "historical"].includes(system.rule);
         const lower =
-            mean == null || standardDeviation == null
+            !statistical || mean == null || standardDeviation == null
                 ? null
                 : mean - system.coverage * standardDeviation;
         const upper =
-            mean == null || standardDeviation == null
+            !statistical || mean == null || standardDeviation == null
                 ? null
                 : mean + system.coverage * standardDeviation;
         const margin =

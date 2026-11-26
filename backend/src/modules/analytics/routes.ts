@@ -10,6 +10,7 @@ import { readJsonBody } from "../../shared/http/request";
 import { sendJson } from "../../shared/http/response";
 import { ANALYTICS_QUERIES, queryDefinition, queryParameters } from "./catalog";
 import { analyticsService } from "./service";
+import { sendAnalyticsUnavailable } from "./diagnostics";
 import { validateArticleOrderFilters } from "./article-orders";
 import { validateArticleOfferFilters } from "./article-offers";
 import {
@@ -33,7 +34,7 @@ export function registerAnalyticsRoutes(
         catch (error) { sendJson(res, 400, { error: (error as Error).message }); return; }
         res.setHeader("Cache-Control", "no-store");
         try { sendJson(res, 200, await service.erpExplorer(input)); }
-        catch { sendJson(res, 503, { error: "Lettura del blocco ERP non riuscita. Verificare la disponibilità del backend e della tabella nel gestionale." }); }
+        catch (error) { sendAnalyticsUnavailable(req, res, error, { error: "Lettura del blocco ERP non riuscita. Verificare la disponibilità del backend e della tabella nel gestionale." }); }
     });
     router.register("POST", "/api/erp/document-lines", async (req, res) => {
         let input;
@@ -41,7 +42,7 @@ export function registerAnalyticsRoutes(
         catch (error) { sendJson(res, 400, { error: (error as Error).message }); return; }
         res.setHeader("Cache-Control", "no-store");
         try { sendJson(res, 200, await service.documentLines(input)); }
-        catch { sendJson(res, 503, { error: "Lettura delle righe del documento non riuscita. Riprovare." }); }
+        catch (error) { sendAnalyticsUnavailable(req, res, error, { error: "Lettura delle righe del documento non riuscita. Riprovare." }); }
     });
     router.register(
         "POST",
@@ -65,7 +66,7 @@ export function registerAnalyticsRoutes(
                 );
             } catch (error) {
                 const message = (error as Error).message;
-                sendJson(res, 503, {
+                sendAnalyticsUnavailable(req, res, error, {
                     error: message.startsWith("Oltre 100.000")
                         ? message
                         : "Lettura impegni clienti non riuscita. Verificare il backend e riprovare.",
@@ -86,7 +87,7 @@ export function registerAnalyticsRoutes(
             sendJson(res, 200, await service.stockAnalysis(input));
         } catch (error) {
             const message = (error as Error).message;
-            sendJson(res, 503, {
+            sendAnalyticsUnavailable(req, res, error, {
                 error: message.startsWith("Oltre 100.000")
                     ? message
                     : "Lettura giacenze dal gestionale non riuscita. Verificare il backend e riprovare.",
@@ -96,12 +97,12 @@ export function registerAnalyticsRoutes(
     router.register(
         "GET",
         "/api/erp/bar-contracts/suppliers",
-        async (_req, res) => {
+        async (req, res) => {
             res.setHeader("Cache-Control", "no-store");
             try {
                 sendJson(res, 200, await service.supplierDirectory());
-            } catch {
-                sendJson(res, 503, {
+            } catch (error) {
+                sendAnalyticsUnavailable(req, res, error, {
                     error: "Lettura anagrafica fornitori non riuscita. Verificare il backend e riprovare.",
                 });
             }
@@ -119,7 +120,7 @@ export function registerAnalyticsRoutes(
         try {
             sendJson(res, 200, await service.barContracts(input));
         } catch (error) {
-            sendJson(res, 503, {
+            sendAnalyticsUnavailable(req, res, error, {
                 error: (error as Error).message.startsWith("Oltre 100.000")
                     ? (error as Error).message
                     : "Lettura contratti barra non riuscita. Verificare il backend e riprovare.",
@@ -138,7 +139,7 @@ export function registerAnalyticsRoutes(
         try {
             sendJson(res, 200, await service.bomAnalysis(input));
         } catch (error) {
-            sendJson(res, 503, {
+            sendAnalyticsUnavailable(req, res, error, {
                 error: (error as Error).message.startsWith("Oltre 100.000")
                     ? (error as Error).message
                     : "Lettura distinte dal gestionale non riuscita. Verificare il backend e riprovare.",
@@ -156,8 +157,8 @@ export function registerAnalyticsRoutes(
         res.setHeader("Cache-Control", "no-store");
         try {
             sendJson(res, 200, await service.documentLinks(input));
-        } catch {
-            sendJson(res, 503, {
+        } catch (error) {
+            sendAnalyticsUnavailable(req, res, error, {
                 error: "Lettura dei documenti collegati non riuscita. Verificare il backend e riprovare.",
             });
         }
@@ -192,7 +193,7 @@ export function registerAnalyticsRoutes(
                             : service.customerAnalysis(input)),
                     );
                 } catch (error) {
-                    sendJson(res, 503, {
+                    sendAnalyticsUnavailable(req, res, error, {
                         error:
                             error instanceof Error &&
                             error.message.startsWith("Oltre 100.000")
@@ -218,8 +219,8 @@ export function registerAnalyticsRoutes(
         res.setHeader("Cache-Control", "no-store");
         try {
             sendJson(res, 200, await service.articleOffers(filters));
-        } catch {
-            sendJson(res, 503, {
+        } catch (error) {
+            sendAnalyticsUnavailable(req, res, error, {
                 error: "Ricerca offerte nel gestionale non riuscita. Verificare il backend e riprovare.",
             });
         }
@@ -241,8 +242,8 @@ export function registerAnalyticsRoutes(
         res.setHeader("Cache-Control", "no-store");
         try {
             sendJson(res, 200, await service.articleOrders(filters));
-        } catch {
-            sendJson(res, 503, {
+        } catch (error) {
+            sendAnalyticsUnavailable(req, res, error, {
                 error: "Ricerca nel gestionale non riuscita. Verificare il backend e riprovare.",
             });
         }
@@ -313,8 +314,8 @@ export function registerAnalyticsRoutes(
             sessions.set(token, { ip: address, expires });
             res.setHeader("Cache-Control", "no-store");
             sendJson(res, 200, { token, expires });
-        } catch {
-            sendJson(res, 503, {
+        } catch (error) {
+            sendAnalyticsUnavailable(req, res, error, {
                 error: "Accesso SQL non configurato sul backend. Eseguire configure-sql-analytics.ps1 sul server.",
             });
         }
@@ -375,8 +376,8 @@ export function registerAnalyticsRoutes(
                     });
                     res.end(body);
                 }
-            } catch {
-                sendJson(res, 503, {
+            } catch (error) {
+                sendAnalyticsUnavailable(req, res, error, {
                     error: "Lettura SQL non riuscita. Verificare connessione e configurazione del backend e riprovare.",
                 });
             }

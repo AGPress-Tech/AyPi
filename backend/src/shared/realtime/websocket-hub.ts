@@ -1,5 +1,6 @@
 import http from "http";
 import { randomUUID } from "crypto";
+import { performance } from "perf_hooks";
 import WebSocket, { WebSocketServer } from "ws";
 import { logger } from "../logging/logger";
 
@@ -31,7 +32,7 @@ type ClientState = {
     version: string;
     remoteAddress: string;
     connectedAt: number;
-    alive: boolean;
+    pingSentAt: number | null;
     modules: Set<string>;
 };
 
@@ -77,6 +78,7 @@ export class RealtimeHub {
     private readonly clients = new Map<WebSocket, ClientState>();
     private readonly heartbeatTimer: NodeJS.Timeout;
     private sequence = 0;
+    private lastHeartbeatAt = performance.now();
     private closing = false;
     private readonly unsubscribeChanges: () => void;
 
@@ -133,13 +135,13 @@ export class RealtimeHub {
             version: url.searchParams.get("version") || "unknown",
             remoteAddress: request.socket.remoteAddress || "",
             connectedAt: Date.now(),
-            alive: true,
+            pingSentAt: null,
             modules: new Set(["*"]),
         };
         this.clients.set(webSocket, state);
 
         webSocket.on("pong", () => {
-            state.alive = true;
+            state.pingSentAt = null;
         });
         webSocket.on("message", (raw) => {
             this.handleMessage(webSocket, state, raw.toString());
@@ -232,8 +234,15 @@ export class RealtimeHub {
     }
 
     private heartbeat() {
+        const now = performance.now();
+        // After a stalled event loop, allow pending pong callbacks to run before
+        // judging clients. A late server timer does not prove a failed network.
+        const delayed = now - this.lastHeartbeatAt > 45000;
+        this.lastHeartbeatAt = now;
         this.clients.forEach((state, webSocket) => {
-            if (!state.alive) {
+            if (webSocket.readyState !== WebSocket.OPEN) return;
+            if (delayed) state.pingSentAt = null;
+            if (state.pingSentAt !== null && now - state.pingSentAt >= 30000) {
                 logger.warn("WebSocket heartbeat timeout", {
                     event: "realtime_heartbeat_timeout",
                     category: "realtime",
@@ -241,12 +250,15 @@ export class RealtimeHub {
                     connectionId: state.connectionId,
                     clientId: state.clientId,
                     remoteAddress: state.remoteAddress,
+                    unansweredForMs: Math.round(now - state.pingSentAt),
                 });
                 webSocket.terminate();
                 return;
             }
-            state.alive = false;
-            webSocket.ping();
+            if (state.pingSentAt === null) {
+                state.pingSentAt = now;
+                webSocket.ping();
+            }
         });
     }
 

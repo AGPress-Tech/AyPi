@@ -18,6 +18,7 @@ import { registerRoutes } from "./routes";
 import { logger } from "./shared/logging/logger";
 import { Router } from "./shared/http/router";
 import { sendError } from "./shared/http/response";
+import { isHttpError } from "./shared/http/errors";
 import {
     initializeSqliteDatabase,
     closeSqliteDatabase,
@@ -173,15 +174,20 @@ export function createBackendServer(ready: Promise<void> = Promise.resolve()) {
                 });
             }
         } catch (error) {
+            const statusCode = isHttpError(error) ? error.statusCode : 500;
+            const rejected = statusCode < 500;
             const httpErrorDetails =
                 error && typeof error === "object" && "details" in error
                     ? (error as { details?: unknown }).details
                     : undefined;
-            logger.error("HTTP request failed", {
-                event: "http_request_failed",
-                category: "error",
+            const writeLog = rejected ? logger.warn : logger.error;
+            writeLog(rejected ? "HTTP request rejected" : "HTTP request failed", {
+                event: rejected ? "http_request_completed" : "http_request_failed",
+                category: rejected ? "http" : "error",
                 module,
-                outcome: "error",
+                outcome: rejected ? "warning" : "error",
+                statusCode,
+                code: isHttpError(error) ? error.code : "INTERNAL_ERROR",
                 requestId: getRequestId(request),
                 method,
                 url: requestUrl,

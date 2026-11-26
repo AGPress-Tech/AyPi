@@ -140,16 +140,16 @@
                 un solo sistema attivo; senza un sistema configurato resta disponibile il rapporto libero. I metodi
                 storici non vengono copiati nelle nuove tarature. Ogni sistema definisce gruppi/punti, nominali, unità,
                 tolleranze e numero di letture; sono disponibili controlli numerici e qualitativi OK/Non OK. La
+                tolleranza predefinita compila i punti numerici nella stessa unità; ogni punto resta modificabile. La
                 tolleranza del punto prevale su quella dello strumento e poi su quella del sistema, sempre nella stessa
                 unità.</p>
             <p>La media e la deviazione standard campionaria s usano tutte le rilevazioni; il delta è media meno
-                nominale. Il criterio scelto può confrontare la media, ogni singola lettura o l'intervallo media ± k·s
-                con i limiti ammessi. I limiti storici dei calibri sono disponibili come criterio esplicito con
-                parametri modificabili. Nei fogli originali s usava solo le ultime tre letture: su vostra indicazione il
-                nuovo calcolo usa tutte le letture. I punti incompleti o senza tolleranza non diventano idonei. Un punto
+                nominale. I due criteri disponibili confrontano la media oppure ogni singola rilevazione con nominale
+                ± tolleranza. I punti incompleti o senza tolleranza non diventano idonei. Un punto
                 non idoneo rende non idoneo il rapporto.</p>
             <p>Ogni rapporto conserva categoria, sistema, revisione, tolleranza e unità usate: modificare il sistema non
-                altera lo storico. Per ricaricare il sistema attuale occorre un'azione esplicita e la conferma dello
+                altera lo storico. Anche eliminando un sistema, i rapporti conservano la versione utilizzata; il sistema
+                eliminato non viene più assegnato alle nuove tarature. Per ricaricare il sistema attuale occorre un'azione esplicita e la conferma dello
                 svuotamento delle letture. L'Excel comprende letture e risultati statistici. Nei rapporti liberi rimane
                 il confronto semplice dei singoli valori con la tolleranza; l'incertezza viene registrata senza
                 applicare una regola decisionale implicita. Un esito negativo/da valutare o un'idoneità dichiarata

@@ -69,6 +69,10 @@ export function updateSortingBar(
 ) {
     const id = table.id + "Sorting";
     let bar = document.getElementById(id);
+    if (!sort.length) {
+        bar?.remove();
+        return;
+    }
     if (!bar) {
         bar = document.createElement("div");
         bar.id = id;
@@ -78,15 +82,14 @@ export function updateSortingBar(
     const summary = document.createElement("span");
     summary.className = "sorting-summary";
     summary.setAttribute("aria-live", "polite");
-    summary.textContent = sort.length
-        ? "Ordina: " +
-          sort
-              .map((item, i) => {
-                  const col = columns.find((c) => c.key === item.key);
-                  return `${i + 1}. ${col?.summaryLabel || col?.label || item.key} ${item.direction === "asc" ? "↑" : "↓"}`;
-              })
-              .join(" → ")
-        : "Clic sulle intestazioni per ordinare · Ctrl+clic per rimuovere";
+    summary.textContent =
+        "Ordina: " +
+        sort
+            .map((item, i) => {
+                const col = columns.find((c) => c.key === item.key);
+                return `${i + 1}. ${col?.summaryLabel || col?.label || item.key} ${item.direction === "asc" ? "↑" : "↓"}`;
+            })
+            .join(" → ");
     if (note) summary.title = note;
     const reset = document.createElement("button");
     reset.type = "button";

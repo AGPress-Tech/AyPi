@@ -12,7 +12,7 @@ import {
     updateSystemResults,
 } from "../modules/calibration-system-editor";
 import {
-    calibrationRules,
+    calibrationRuleLabel,
     categoryCalibrationSystem,
 } from "../../../backend/src/modules/measurement-instruments/calibration-system";
 import Chart from "chart.js/auto";
@@ -396,7 +396,7 @@ function currentRows() {
         return (snapshot.systems || [])
             .map((s) => ({
                 ...s,
-                ruleLabel: calibrationRules[s.rule],
+                ruleLabel: calibrationRuleLabel(s.rule),
                 groupCount: new Set(s.points.map((p) => p.group)).size,
                 pointCount: s.points.length,
                 activeLabel: s.active ? "Attivo" : "Disattivato",
@@ -1380,7 +1380,7 @@ function initWorkspace() {
 }
 let customSpecialEditor: ReturnType<typeof specialFilterEditor> | undefined;
 function customSpecialColumns() {
-    return [...new Map(([...instrumentColumns, ...calibrationColumns, ...systemColumns].map(c => ({ key: c.key, label: c.label, kind: c.type || "text" }))).map(c => [c.key, c])).values()];
+    return [...new Map(([...instrumentColumns, ...calibrationColumns, ...systemColumns].map(([key, label, type]) => ({ key, label, kind: type || "text" }))).map(c => [c.key, c])).values()];
 }
 function syncCustomSpecialFilters() {
     if (!customSpecialEditor) {
@@ -2078,7 +2078,9 @@ async function deleteEntity(kind: string, entity: any) {
     if (
         !(await confirmAction(
             "Elimina scheda",
-            "Eliminare la scheda? Lo storico delle operazioni conserverà la modifica.",
+            kind === "system"
+                ? "Eliminare il sistema? Non sarà più assegnato alle nuove tarature; i rapporti già registrati conservano il sistema utilizzato."
+                : "Eliminare la scheda? Lo storico delle operazioni conserverà la modifica.",
             "Elimina",
         ))
     )
@@ -2104,7 +2106,7 @@ function facts(i: any) {
 }
 function reportMeasurementDetails(r: any) {
     if (!r.measurements?.length) return "—";
-    return `<details><summary>${r.measurements.length} punti${r.systemSnapshot ? " · " + esc(r.systemSnapshot.name) + " · rev. " + r.systemSnapshot.revision : ""}</summary><div class="table-scroll"><table><thead><tr>${["Punto", "Unità", "Nominale", "Rilevazioni", "Media / misurato", "Delta", "s", "Media - k·s", "Media + k·s", "Ammesso inf.", "Ammesso sup.", "Tolleranza ±", "Incertezza", "Esito"].map((h) => `<th>${h}</th>`).join("")}</tr></thead><tbody>${r.measurements.map((m) => `<tr><td>${esc(m.label)}</td><td>${esc(m.unit)}</td><td>${num(m.nominal, 6)}</td><td>${m.readings ? m.readings.map((v) => (v == null ? "—" : typeof v === "number" ? num(v, 6) : v === "ok" ? "OK" : "Non OK")).join(" ; ") : "—"}</td>${["measured", "deviation", "standardDeviation", "lower", "upper", "acceptanceLower", "acceptanceUpper", "tolerance", "uncertainty"].map((key) => `<td class="numeric">${num(m[key], 6)}</td>`).join("")}<td>${m.pass == null ? "Da completare" : m.pass ? "ID" : "NID"}</td></tr>`).join("")}</tbody></table></div>${r.systemSnapshot ? `<p>${esc(calibrationRules[r.systemSnapshot.rule])} · Tolleranza strumento archiviata: ${num(r.systemTolerance, 6)} ${esc(r.systemToleranceUnit)}.</p><p>${esc(r.systemSnapshot.description)}</p>` : ""}</details>`;
+    return `<details><summary>${r.measurements.length} punti${r.systemSnapshot ? " · " + esc(r.systemSnapshot.name) + " · rev. " + r.systemSnapshot.revision : ""}</summary><div class="table-scroll"><table><thead><tr>${["Punto", "Unità", "Nominale", "Rilevazioni", "Media / misurato", "Delta", "s", "Ammesso inf.", "Ammesso sup.", "Tolleranza ±", "Incertezza", "Esito"].map((h) => `<th>${h}</th>`).join("")}</tr></thead><tbody>${r.measurements.map((m) => `<tr><td>${esc(m.label)}</td><td>${esc(m.unit)}</td><td>${num(m.nominal, 6)}</td><td>${m.readings ? m.readings.map((v) => (v == null ? "—" : typeof v === "number" ? num(v, 6) : v === "ok" ? "OK" : "Non OK")).join(" ; ") : "—"}</td>${["measured", "deviation", "standardDeviation", "acceptanceLower", "acceptanceUpper", "tolerance", "uncertainty"].map((key) => `<td class="numeric">${num(m[key], 6)}</td>`).join("")}<td>${m.pass == null ? "Da completare" : m.pass ? "ID" : "NID"}</td></tr>`).join("")}</tbody></table></div>${r.systemSnapshot ? `<p>${esc(calibrationRuleLabel(r.systemSnapshot.rule))} · Tolleranza strumento archiviata: ${num(r.systemTolerance, 6)} ${esc(r.systemToleranceUnit)}.</p><p>${esc(r.systemSnapshot.description)}</p>` : ""}</details>`;
 }
 function recordTable(records: any[]) {
     return `<div class="table-scroll"><table><thead><tr><th>Data</th><th>Regime</th><th>Esito</th><th>Laboratorio / operatore</th><th>Certificato</th><th>Fonte</th><th>Misure</th><th>Documenti</th></tr></thead><tbody>${
@@ -2530,13 +2532,7 @@ $("editFields").onchange = (event) => {
     )
         updateNstFields();
     if (editKind === "system") {
-        if (target.name === "rule" && target.value === "historical")
-            (
-                $("editFields").querySelector(
-                    "[name=strict]",
-                ) as HTMLSelectElement
-            ).value = "true";
-        updateSystemDefinition($("editFields"));
+        updateSystemDefinition($("editFields"), target.name === "tolerance");
     }
     if (editKind === "calibration" && target.name === "instrumentId")
         void changeCalibrationInstrument();
@@ -2547,6 +2543,8 @@ $("editFields").onchange = (event) => {
 };
 $("editFields").oninput = (event) => {
     const target = event.target as HTMLInputElement;
+    if (editKind === "system" && target.name === "tolerance")
+        updateSystemDefinition($("editFields"), true);
     if (
         editKind === "calibration" &&
         editingSystem &&

@@ -1,5 +1,6 @@
 import {
     calibrationRules,
+    calibrationRuleLabel,
     evaluateCalibrationSystem,
 } from "../../../backend/src/modules/measurement-instruments/calibration-system";
 const esc = (v: any) =>
@@ -60,14 +61,7 @@ export function calibrationSystemForm(v: any, categories: string[] = []) {
             v.tolerance,
             "number",
         ) +
-        input(
-            "coverage",
-            "Fattore k per media ± k·s",
-            v.coverage ?? 2,
-            "number",
-        ) +
         `<label>Valori esattamente sul limite<select name="strict"><option value="false">Accettati (≤ / ≥)</option><option value="true" ${v.strict ? "selected" : ""}>Non accettati (&lt; / &gt;)</option></select></label>` +
-        `<fieldset class="measurement-wide system-historical-fields"><legend>Parametri dei limiti storici</legend><div class="system-parameter-grid">${input("limitConstant", "Costante A", v.limitConstant ?? 50, "number") + input("limitSlope", "Coefficiente B del nominale", v.limitSlope ?? 0.1, "number") + input("limitScale", "Scala dei limiti (es. 0,001)", v.limitScale ?? 0.001, "number") + input("marginScale", "Scala margine dalla tolleranza", v.marginScale ?? 0.001, "number")}</div><p>Limiti ammessi = nominale ± (A + B × nominale) × scala. Il margine si aggiunge all’intervallo media ± k·s. Nei nuovi sistemi s usa tutte le rilevazioni.</p></fieldset>` +
         `<label class="measurement-wide">Procedura, campioni e istruzioni<textarea name="description">${esc(v.description)}</textarea></label><section class="measurement-wide system-points-editor"><div class="measurement-row"><h3>Gruppi e punti da controllare</h3><button id="addSystemPoint" type="button">+ Punto di controllo</button></div><datalist id="systemGroups">${["Misure esterne", "Profondità", "Misure interne", "Diametri", "Altezze", "Planarità"].map((value) => `<option value="${value}"></option>`).join("")}</datalist><div class="measurement-measures system-definition-table"><table><thead><tr>${["Gruppo", "Punto", "Tipo", "Nominale", "Unità", "Tolleranza ±", "Rilevazioni del punto", ""].map((label) => `<th>${label}</th>`).join("")}</tr></thead><tbody id="systemPoints">${(v.points?.length ? v.points : [{}]).map(systemPointRow).join("")}</tbody></table></div></section>`
     );
 }
@@ -88,10 +82,12 @@ export function readSystemPoints(host: HTMLElement) {
         },
     );
 }
-export function updateSystemDefinition(host: HTMLElement) {
-    const rule = host.querySelector<HTMLSelectElement>("[name=rule]")?.value;
-    host.querySelector<HTMLElement>(".system-historical-fields")!.hidden =
-        rule !== "historical";
+export function updateSystemDefinition(
+    host: HTMLElement,
+    applyDefaultTolerance = false,
+) {
+    const defaultTolerance = host.querySelector<HTMLInputElement>("[name=tolerance]")?.value || "";
+    const defaultUnit = host.querySelector<HTMLInputElement>("[name=unit]")?.value.trim() || "";
     for (const row of host.querySelectorAll<HTMLElement>(
         "[data-system-point]",
     )) {
@@ -114,6 +110,16 @@ export function updateSystemDefinition(host: HTMLElement) {
             el.disabled = qualitative;
             el.required = key === "nominal" && !qualitative;
         }
+        const tolerance = row.querySelector<HTMLInputElement>("[data-p=tolerance]")!;
+        const unit = row.querySelector<HTMLInputElement>("[data-p=unit]")!.value.trim();
+        if (
+            !qualitative &&
+            (!unit || unit === defaultUnit) &&
+            (applyDefaultTolerance ||
+                (tolerance.dataset.defaultInitialized !== "true" && !tolerance.value))
+        )
+            tolerance.value = defaultTolerance;
+        tolerance.dataset.defaultInitialized = "true";
     }
 }
 export function readSystemReadings(host: HTMLElement) {
@@ -136,15 +142,15 @@ export function readSystemReadings(host: HTMLElement) {
 }
 export function systemReadingsMarkup(system: any, measurements: any[] = []) {
     const max = Math.max(...system.points.map((p) => p.repetitions));
-    return `<div class="measurement-row"><h3>${esc(system.name)} · revisione ${system.revision}</h3><span data-system-verdict></span></div><div class="measurement-measures system-readings-table"><table><thead><tr><th>Gruppo / punto</th><th>Nominale</th><th>Unità</th>${Array.from({ length: max }, (_, i) => `<th>${i + 1}ª</th>`).join("")}<th>Media</th><th>Delta</th><th>s (tutte)</th><th>Media - k·s</th><th>Media + k·s</th><th>Ammesso inf.</th><th>Ammesso sup.</th><th>Esito</th></tr></thead><tbody>${system.points
+    return `<div class="measurement-row"><h3>${esc(system.name)} · revisione ${system.revision}</h3><span data-system-verdict></span></div><div class="measurement-measures system-readings-table"><table><thead><tr><th>Gruppo / punto</th><th>Nominale</th><th>Unità</th>${Array.from({ length: max }, (_, i) => `<th>${i + 1}ª</th>`).join("")}<th>Media</th><th>Delta</th><th>s (tutte)</th><th>Ammesso inf.</th><th>Ammesso sup.</th><th>Esito</th></tr></thead><tbody>${system.points
         .map((p) => {
             const values =
                 measurements.find((m) => m.pointId === p.id)?.readings || [];
-            return `<tr data-reading-point="${esc(p.id)}"><th scope="row">${esc(p.group)} · ${esc(p.label)}</th><td>${p.kind === "numeric" ? number(p.nominal) : "OK"}</td><td>${esc(p.unit)}</td>${Array.from({ length: max }, (_, i) => (i >= p.repetitions ? '<td class="system-not-required"></td>' : `<td>${p.kind === "qualitative" ? `<select data-reading="${i}" aria-label="${esc(p.group + " " + p.label)} rilevazione ${i + 1}"><option value="">—</option><option value="ok" ${values[i] === "ok" ? "selected" : ""}>OK</option><option value="not_ok" ${values[i] === "not_ok" ? "selected" : ""}>Non OK</option></select>` : `<input data-reading="${i}" inputmode="decimal" value="${esc(values[i])}" aria-label="${esc(p.group + " " + p.label)} rilevazione ${i + 1}">`}</td>`)).join("")}${["mean", "deviation", "standardDeviation", "lower", "upper", "acceptanceLower", "acceptanceUpper", "pass"].map((key) => `<td data-result="${key}">—</td>`).join("")}</tr>`;
+            return `<tr data-reading-point="${esc(p.id)}"><th scope="row">${esc(p.group)} · ${esc(p.label)}</th><td>${p.kind === "numeric" ? number(p.nominal) : "OK"}</td><td>${esc(p.unit)}</td>${Array.from({ length: max }, (_, i) => (i >= p.repetitions ? '<td class="system-not-required"></td>' : `<td>${p.kind === "qualitative" ? `<select data-reading="${i}" aria-label="${esc(p.group + " " + p.label)} rilevazione ${i + 1}"><option value="">—</option><option value="ok" ${values[i] === "ok" ? "selected" : ""}>OK</option><option value="not_ok" ${values[i] === "not_ok" ? "selected" : ""}>Non OK</option></select>` : `<input data-reading="${i}" inputmode="decimal" value="${esc(values[i])}" aria-label="${esc(p.group + " " + p.label)} rilevazione ${i + 1}">`}</td>`)).join("")}${["mean", "deviation", "standardDeviation", "acceptanceLower", "acceptanceUpper", "pass"].map((key) => `<td data-result="${key}">—</td>`).join("")}</tr>`;
         })
         .join(
             "",
-        )}</tbody></table></div><details class="system-procedure"><summary>Procedura e campioni</summary><p>${esc(system.description || "Nessuna istruzione aggiuntiva.")}</p></details><p class="system-calculation-summary">${esc(calibrationRules[system.rule])}. I risultati incompleti o privi di tolleranza non producono un giudizio di idoneità.</p>`;
+        )}</tbody></table></div><details class="system-procedure"><summary>Procedura e campioni</summary><p>${esc(system.description || "Nessuna istruzione aggiuntiva.")}</p></details><p class="system-calculation-summary">${esc(calibrationRuleLabel(system.rule))}. I risultati incompleti o privi di tolleranza non producono un giudizio di idoneità.</p>`;
 }
 export function updateSystemResults(
     host: HTMLElement,

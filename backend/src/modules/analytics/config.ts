@@ -35,8 +35,9 @@ function unprotect(cipher: string): Promise<string> {
             (error, out) =>
                 error
                     ? reject(
-                          new Error(
-                              "Impossibile decifrare la configurazione SQL su questo server.",
+                          Object.assign(
+                              new Error("Impossibile decifrare la configurazione SQL su questo server."),
+                              { code: "ANALYTICS_DECRYPT_FAILED" },
                           ),
                       )
                     : resolve(out),
@@ -47,16 +48,26 @@ function unprotect(cipher: string): Promise<string> {
 export async function loadAnalyticsConfig(): Promise<AnalyticsConfig> {
     let raw: any = {};
     const file = analyticsCredentialsPath();
-    if (fs.existsSync(file))
-        raw = JSON.parse(
-            (await fs.promises.readFile(file, "utf8")).replace(/^\uFEFF/, ""),
-        );
+    if (fs.existsSync(file)) {
+        try {
+            raw = JSON.parse(
+                (await fs.promises.readFile(file, "utf8")).replace(/^\uFEFF/, ""),
+            );
+            if (!raw || typeof raw !== "object" || Array.isArray(raw)) throw Error();
+        } catch {
+            throw Object.assign(
+                new Error("Configurazione SQL non valida o non leggibile sul server."),
+                { code: "ANALYTICS_CONFIG_INVALID" },
+            );
+        }
+    }
     const password =
         process.env.AYPI_ANALYTICS_SQL_PASSWORD ||
         (raw.passwordProtected ? await unprotect(raw.passwordProtected) : "");
     if (!password)
-        throw new Error(
-            "Configurare l’accesso SQL sul server con configure-sql-analytics.ps1.",
+        throw Object.assign(
+            new Error("Configurare l’accesso SQL sul server con configure-sql-analytics.ps1."),
+            { code: "ANALYTICS_NOT_CONFIGURED" },
         );
     return {
         server: process.env.AYPI_ANALYTICS_SQL_SERVER || raw.server || "DL360",
