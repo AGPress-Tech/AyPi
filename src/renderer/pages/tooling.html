@@ -37,7 +37,7 @@
             attrezzature</button><button data-view="links">Articoli collegati</button><button
             data-view="movements">Storico quantità</button><button data-view="issues">Gestione rotture</button><button
             data-view="alerts">Da reintegrare</button><button data-view="report">Danneggiati e rotture</button><button
-            data-view="info">Origine e verifiche</button></nav>
+            data-view="info">Importazione</button></nav>
     <main id="workspace" hidden>
         <section class="filters panel">
             <div class="filter-row"><label>Cerca<input id="textFilter" type="search"
@@ -124,33 +124,8 @@
             </div>
         </section>
         <section id="infoPanel" class="panel maintenance-info" hidden>
-            <h2>Origine e verifiche</h2><button id="importAccess">Confronta e importa Access</button>
+            <h2>Importazione</h2><button id="importAccess">Confronta e importa Access</button>
             <p id="importInfo"></p>
-            <p>L'importazione è esclusivamente manuale, con anteprima. Aggiunge soltanto le voci mancanti: non riscrive
-                saldi, schede o collegamenti già presenti e non ripristina quelli eliminati. Access è letto da una copia
-                locale in sola lettura.</p>
-            <p>Gli articoli nuovi si selezionano dall'anagrafica del gestionale, in sola lettura. Gli articoli storici
-                restano riconoscibili e collegabili esplicitamente al codice ERP corretto. Quando il gestionale non
-                risponde si può consultare lo storico e gestire le giacenze; la creazione o l'associazione di articoli
-                ERP richiede una verifica online.</p>
-            <p>I saldi iniziali importati non sono rotture datate. Il registro conserva carichi, rotture, ripristini,
-                scarichi, smaltimenti e rettifiche con operatore e motivazione. Le giacenze non possono diventare
-                negative; le rettifiche sono tracciate. Annullare un movimento ne conserva lo storico e richiede che i
-                movimenti successivi restino validi. La data è la data dichiarata dell'evento; l'ordine contabile è
-                quello di registrazione.</p>
-            <p>La quota attualmente danneggiata è danneggiati / (utilizzabili + danneggiati). Senza quantità la
-                percentuale resta mancante. Il trend delle rotture usa solo gli eventi datati non annullati, escludendo
-                i saldi iniziali. Il filtro articolo negli eventi usa solo l'articolo dichiarato nella registrazione e
-                non attribuisce rotture agli altri articoli collegati. Le date filtrano eventi e segnalazioni, mentre
-                giacenze e report restano la situazione attuale. Le rotture del periodo possono riguardare pezzi
-                riparati più volte: non rappresentano pezzi unici.</p>
-            <p>Una rottura apre una segnalazione con priorità, assegnatario e risoluzione. Chiudere la segnalazione non
-                ripristina pezzi: occorre registrare il movimento appropriato. Le soglie minime generano proposte di
-                reintegro, senza ordini automatici. La disponibilità delle dotazioni vale per il singolo articolo e non
-                prenota quantità per produzioni simultanee.</p>
-            <p>Schede, saldi, allegati locali, collegamenti, audit e preferenze per dipendente risiedono nel database
-                centrale AyPi. Gli utensili con movimenti si archiviano, preservando tutto lo storico. I collegamenti ai
-                file di rete rimangono al percorso originale.</p>
             <div id="importProblems"></div>
         </section>
     </main>

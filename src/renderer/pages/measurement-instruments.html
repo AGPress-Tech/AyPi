@@ -39,7 +39,7 @@
                     id="dueBadge"></span></button><button data-view="instruments">Strumenti</button><button
                 data-view="calibrations">Tarature</button><button data-view="nst">Gestione NST</button><button
                 data-view="systems">Sistemi di taratura</button><button data-view="analysis">Analisi
-                strumento</button><button data-view="info">Origine e verifiche</button></nav>
+                strumento</button><button data-view="info">Importazione</button></nav>
         <section id="filters" class="filters">
             <div class="filter-row">
                 <details class="filter-picker">
@@ -121,52 +121,8 @@
             <div id="dueGroups" class="maintenance-due-groups"></div>
         </section>
         <section id="infoPanel" class="panel maintenance-info" hidden>
-            <h2>Origine e verifiche</h2><button id="importAccess">Confronta e importa Access</button>
+            <h2>Importazione</h2><button id="importAccess">Confronta e importa Access</button>
             <div id="importInfo"></div>
-            <p>Gli strumenti con taratura interna o esterna devono avere una scadenza di taratura. La frequenza e la
-                scadenza iniziale sono obbligatorie nella scheda; quando esiste uno storico valido la scadenza viene
-                calcolata dall'ultima taratura e dalla frequenza attuale in mesi di calendario. In assenza di storico si
-                usa la scadenza iniziale dichiarata o la prossima data valida importata da Access. La scadenza iniziale
-                non crea una taratura nello storico. Le date mancanti nei dati preesistenti restano segnalate da
-                completare, senza inventare scadenze.</p>
-            <p>Gli NST (non soggetti a taratura) non richiedono scadenza, frequenza o data di classificazione e sono
-                esclusi dalle scadenze di taratura e dalla percentuale degli strumenti regolari. La motivazione rimane
-                facoltativa. L'assenza di una data non produce la segnalazione di classificazione da verificare. Solo se
-                si sceglie una revisione periodica NST occorre la data iniziale della revisione; le sue notifiche
-                restano separate dalle tarature. Tornare alla taratura richiede motivazione, frequenza, scadenza e una
-                nuova registrazione.</p>
-            <p>I Sistemi di taratura sono definiti da voi per categoria: aprendo la taratura di uno strumento viene
-                caricato il sistema attivo della sua categoria, senza assegnazioni individuali. Ogni categoria può avere
-                un solo sistema attivo; senza un sistema configurato resta disponibile il rapporto libero. I metodi
-                storici non vengono copiati nelle nuove tarature. Ogni sistema definisce gruppi/punti, nominali, unità,
-                tolleranze e numero di letture; sono disponibili controlli numerici e qualitativi OK/Non OK. La
-                tolleranza predefinita compila i punti numerici nella stessa unità; ogni punto resta modificabile. La
-                tolleranza del punto prevale su quella dello strumento e poi su quella del sistema, sempre nella stessa
-                unità.</p>
-            <p>La media e la deviazione standard campionaria s usano tutte le rilevazioni; il delta è media meno
-                nominale. I due criteri disponibili confrontano la media oppure ogni singola rilevazione con nominale
-                ± tolleranza. I punti incompleti o senza tolleranza non diventano idonei. Un punto
-                non idoneo rende non idoneo il rapporto.</p>
-            <p>Ogni rapporto conserva categoria, sistema, revisione, tolleranza e unità usate: modificare il sistema non
-                altera lo storico. Anche eliminando un sistema, i rapporti conservano la versione utilizzata; il sistema
-                eliminato non viene più assegnato alle nuove tarature. Per ricaricare il sistema attuale occorre un'azione esplicita e la conferma dello
-                svuotamento delle letture. L'Excel comprende letture e risultati statistici. Nei rapporti liberi rimane
-                il confronto semplice dei singoli valori con la tolleranza; l'incertezza viene registrata senza
-                applicare una regola decisionale implicita. Un esito negativo/da valutare o un'idoneità dichiarata
-                negativa sulla scheda blocca la regolarità.</p>
-            <p>Access conserva solo l'ultima data di taratura: i riferimenti importati sono marcati come date storiche,
-                con esito sconosciuto, e non diventano interventi completi o esiti positivi. Il confronto aggiunge
-                strumenti mancanti, segnala differenze e non sovrascrive schede, tarature o eliminazioni AyPi. La copia
-                sorgente viene letta in sola lettura.</p>
-            <p>Prossime 10 tarature mostra le prime dieci scadenze da oggi in avanti per gli strumenti in uso con
-                taratura regolare, rispettando filtri e selezioni. La data prevista deriva dalla scadenza calcolata o
-                iniziale dichiarata e non indica un appuntamento confermato. Le tarature scadute e gli strumenti non
-                idonei restano nelle Notifiche.</p>
-            <p>Le analisi dello stato riguardano il parco attuale; i trend riguardano le registrazioni AyPi nel periodo
-                scelto, escludendo i soli riferimenti Access. Le percentuali senza campione restano mancanti. Gli
-                importi sono separati per valuta nell'export. Certificati locali archiviati nel backend; documenti di
-                rete mantenuti al percorso originale. I dati risiedono nel database centrale AyPi con revisioni
-                concorrenti e audit.</p>
             <div id="issues"></div>
         </section>
     </main>

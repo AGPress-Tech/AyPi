@@ -466,13 +466,6 @@ async function load(input: unknown = {}) {
         loaded = true;
         renderPeriods();
         renderPreferences();
-        $("sourceInfo").textContent =
-            "Lettura: " +
-            new Date(queriedAt).toLocaleString("it-IT") +
-            (selected.length
-                ? " · Periodi: " +
-                  selected.map((p) => p.year + " / " + p.period).join(", ")
-                : "");
         renderFilters();
         render();
         if (wasMultiple !== selected.length > 1)

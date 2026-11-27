@@ -481,11 +481,6 @@ function render() {
         },
     });
     $("columnCount").textContent = String(columns.length);
-    $("sourceInfo").textContent = queriedAt
-        ? "Lettura gestionale: " +
-          new Date(queriedAt).toLocaleString("it-IT") +
-          "."
-        : "";
 }
 function renderColumns() {
     $("columnPicker").innerHTML = COLUMNS.map(

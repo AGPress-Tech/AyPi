@@ -120,8 +120,7 @@ type View =
     | "articles"
     | "performance"
     | "simulator"
-    | "workbook"
-    | "quality";
+    | "workbook";
 type Kind =
     | "text"
     | "money"
@@ -3185,50 +3184,6 @@ function applySimulation() {
         }),
     );
 }
-function quality() {
-    const q = data!.quality,
-        annual = data!.years.map((year) => ({
-            year,
-            stats: turningStats(data!.records.filter((r) => r.year === year)),
-        }));
-    $("content").innerHTML =
-        `<div class="quality-layout"><article class="panel"><div class="quality-copy"><div class="eyebrow">ORIGINE E CRITERI</div><h2>Una lettura verificabile</h2><p><code>${esc(data!.source)}</code></p><dl><dt>Foglio registrazioni</dt><dd>COMPLETO</dd><dt>Parametri</dt><dd>VALORIZZAZIONE e formule annuali</dd><dt>Modifica del file</dt><dd>${esc(new Date(data!.modifiedAt).toLocaleString("it-IT"))}</dd><dt>Ultima lettura riuscita</dt><dd>${esc(new Date(data!.loadedAt).toLocaleString("it-IT"))}</dd><dt>Registrazioni incluse</dt><dd>${num(q.included, 0)}</dd><dt>Intervallo degli esercizi</dt><dd>${data!.years[0]}–${data!.years[data!.years.length - 1]}</dd></dl><h3>Calcoli adottati</h3><p>Ricavo valorizzato = prezzo × pezzi. Ore totali = attrezzaggio + produzione. La resa complessiva è ricavo totale / ore totali, distinta dalla media aritmetica delle rese delle registrazioni. Il ricavo valorizzato non è fatturato contabile.</p><p>Ogni riga è una registrazione/fase: i pezzi possono essere contati nuovamente in fasi diverse. Gli ordini distinti sono separati dal numero di registrazioni; il precedente Power BI chiamava “Conta Ordini” un conteggio delle righe articolo.</p><h3>Capacità e riferimenti</h3><p>La saturazione usa le capacità annue presenti nelle formule dell’Excel (8 h, 14 h e mista/robot). Con proquota mesi, la capacità è ripartita in dodicesimi: non rappresenta un calendario consuntivo di turni. I riferimenti €/h provengono dalle righe e da VALORIZZAZIONE; lo scarto non è una perdita economica accertata.</p><p>Le selezioni multiple sono combinate tra dimensioni. I KPI si riferiscono all’ultimo esercizio selezionato e al precedente selezionato, oppure all’anno prima se disponibile. I grafici e i confronti includono tutti gli anni selezionati, sugli stessi mesi.</p><p>Le impostazioni e gli obiettivi sono personali. Le celle numeriche vuote sono trattate come zero, come nelle formule elementari dell’Excel; i contenuti non numerici sono segnalati e non stimati. La lettura non esegue macro e l’esportazione crea un file separato.</p><h3>Segnalazioni della sorgente</h3><div class="quality-counters">${[
-            ["Valori non numerici", q.invalidInputs],
-            ["Celle vuote trattate come zero in Excel", q.blankNumericCells],
-            ["Date escluse", q.invalidDates],
-            ["Righe a prezzo zero/assente", q.unpriced],
-            ["Macchine mancanti", q.missingMachine],
-            ["Articoli non identificati", q.missingArticle],
-            ["Righe senza riferimento €/h", q.noIdeal],
-            ["Errori nelle formule memorizzate", q.cachedErrors],
-            ["Differenze dalle formule memorizzate", q.formulaDifferences],
-        ]
-            .map(
-                ([label, value]) =>
-                    `<div><b>${num(Number(value), 0)}</b>${label}</div>`,
-            )
-            .join(
-                "",
-            )}</div>${q.examples.length ? "<h3>Esempi di segnalazioni</h3>" + q.examples.map((e) => `<p>Riga ${e.row}: ${esc(e.issue)}</p>`).join("") : ""}</div></article>${panel("Quadratura degli esercizi", "Totali dell’intero foglio, indipendenti dai filtri di analisi", tableShell())}</div>`;
-    renderTable({
-        key: "quality",
-        columns: [
-            { key: "year", label: "Anno", kind: "year" },
-            { key: "registrations", label: "Registrazioni", kind: "integer" },
-            { key: "quantity", label: "Pezzi per fase", kind: "number" },
-            { key: "setup", label: "Ore attrezzaggio", kind: "number" },
-            { key: "production", label: "Ore produzione", kind: "number" },
-            { key: "hours", label: "Ore totali", kind: "number" },
-            { key: "revenue", label: "Ricavo valorizzato", kind: "money" },
-            { key: "rate", label: "Resa complessiva", kind: "rate" },
-        ],
-        rows: annual.map((a) => ({
-            id: String(a.year),
-            values: { year: a.year, ...statValues(a.stats) },
-        })),
-        note: "Valori ricalcolati dai dati elementari; confronto diretto con le tabelle annuali Excel.",
-    });
-}
 function render() {
     if (!data) return;
     document.body.dataset.view = view;
@@ -3237,7 +3192,7 @@ function render() {
     renderedChartIds.clear();
     activeTable = null;
     $("kpis").hidden =
-        view === "quality" || view === "simulator" || view === "workbook";
+        view === "simulator" || view === "workbook";
     if (!$("kpis").hidden) renderKpis();
     document
         .querySelectorAll<HTMLElement>("[data-view]")
@@ -3252,7 +3207,6 @@ function render() {
     else if (view === "performance") performanceView();
     else if (view === "simulator") simulatorView();
     else if (view === "workbook") void showTurningWorkbook($("content"));
-    else quality();
     if (view !== "workbook") renderCustomCharts();
     $("content")
         .querySelectorAll<HTMLElement>(".chart-grid,.dashboard-grid")
@@ -3521,7 +3475,6 @@ function openChartsMenu(editId?: string) {
         articles: "Articoli e registrazioni",
         performance: "Rendimenti",
         simulator: "Simulatore",
-        quality: "Origine e verifiche",
     };
     $("chartsPageTitle").textContent = "Grafici · " + names[view];
     refreshChartsMenu();

@@ -32,8 +32,7 @@
     <div class="navigation-row">
       <nav class="module-tabs" aria-label="Sezioni"><button class="active" data-view="overview">Overview</button><button
           data-view="goals">Obiettivi e KPI</button><button data-view="statement">Conto economico</button><button
-          data-view="trends">Andamento e anni</button><button data-view="details">Dettaglio conti</button><button
-          data-view="quality">Origine e verifiche</button></nav>
+          data-view="trends">Andamento e anni</button><button data-view="details">Dettaglio conti</button></nav>
       <div id="status" role="status" aria-live="polite">Caricamento del file Excel di rete…</div>
     </div>
     <section class="filters" id="filters" aria-label="Periodi di analisi e confronto">
@@ -211,31 +210,6 @@
           <div class="table-scroll">
             <table id="detailTable"></table>
           </div>
-        </article>
-      </section>
-      <section id="quality" class="view" hidden>
-        <article class="panel">
-          <div class="panel-head">
-            <h2>Origine dei dati e qualità dell’importazione</h2>
-          </div>
-          <div id="qualityInfo" class="quality-info"></div>
-        </article>
-        <article class="panel method">
-          <h2>Criteri di calcolo</h2>
-          <p>Origine: fogli Bilancino, Calcoli e Filtri di ExportMovimenti.xlsx. Tutti gli anni presenti sono
-            disponibili; la data utilizzata è DataCompetenza. Le scritture con TipoCodice 5177346 sono escluse.</p>
-          <p>I codici delle regole con meno di 8 caratteri selezionano una famiglia di conti; quelli di almeno 8
-            caratteri selezionano il conto esatto. Il valore gestionale è il saldo contabile moltiplicato per la
-            percentuale e invertito di segno. Nessun arrotondamento intermedio.</p>
-          <p>Margine 1 = ricavi di produzione + variazioni rimanenze + incrementi immobilizzazioni + costi variabili.
-            Margine 2 = Margine 1 + costi fissi + ammortamenti e svalutazioni. Totale Algeria = componenti non legate
-            alla produzione. Margine 3 = Margine 2 + Totale Algeria + gestione finanziaria + gestione straordinaria.</p>
-          <p>Ricavi e costi dei KPI rappresentano rispettivamente la somma delle categorie positive e il valore assoluto
-            delle categorie negative. I margini usano sempre l’intero perimetro gestionale. Il confronto usa gli stessi
-            mesi salvo selezione di periodi indipendenti; non viene eseguita alcuna proiezione annuale.</p>
-          <p>I conti senza regole possono comprendere conti patrimoniali: il loro saldo non viene aggiunto ai risultati
-            gestionali. Ripartizioni superiori al 100% sono segnalate e applicate come definite nel file. Budget,
-            imposte e indici patrimoniali richiedono dati e regole specifici e non vengono stimati.</p>
         </article>
       </section>
     </div>

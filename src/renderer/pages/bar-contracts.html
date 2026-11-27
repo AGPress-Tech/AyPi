@@ -86,32 +86,7 @@
                 </div>
                 <div class="results-footer"><span id="loaded"></span></div>
             </div>
-            <details class="analysis-information">
-                <summary>Informazioni sui dati e sui calcoli</summary>
-                <p id="sourceInfo"></p>
-                <p>La vista iniziale mostra Attivi / aperti. Usa Stato contratti per selezionare anche più stati
-                    contemporaneamente: Chiusi, Scaduti (aperti e chiusi) oppure Tutti (storico completo). I filtri Data
-                    contratto e Scadenza delimitano il periodo storico; Azzera ripristina gli aperti. Una scadenza
-                    passata non chiude automaticamente un contratto ancora aperto nel gestionale.</p>
-                <p>Contratti barra: offerte fornitore /C con righe barra, per i fornitori selezionati in Fornitori
-                    barra. I collegamenti agli ordini usano gli ID e le righe gestionali, senza confrontare riferimenti
-                    liberi o codici articolo.</p>
-                <p>Kg ricevuti: quantità consegnata registrata sulle righe ordine (DeliveredQty). I documenti di
-                    acquisto/DDT non sono presenti nella fonte verificata. Disponibilità residua = kg contratto − kg
-                    ricevuti − kg ancora aperti sugli ordini. Residuo da ricevere = kg contratto − kg ricevuti. Gli
-                    ordini annullati non impegnano disponibilità; le consegne già effettuate restano conteggiate. Una
-                    riga evasa non impegna gli scostamenti finali di peso. I valori negativi restano visibili.</p>
-                <p>Prezzo contrattuale originale: €/kg solo per EUR e KG, senza includere maggiorazioni delle singole
-                    forniture. Unità non convertibili e quantità mancanti producono valori mancanti e una segnalazione
-                    nella colonna Verifica dati. I KPI indicano quando il totale è parziale. La scadenza non chiude
-                    automaticamente il contratto: le chiusure di testata e riga determinano lo stato.</p>
-                <p>Filtri su tutte le colonne: alternative sullo stesso campo in OR, campi diversi in AND. Excel include
-                    tutte le righe filtrate e gli ordini collegati. Colonne e fino a dieci preset sono personali.
-                    Raggruppa fornitori mostra i totali dei contratti filtrati per codice fornitore: le quantità
-                    additive si sommano, il prezzo EUR/kg è ponderato sui kg contrattuali e il ricevuto % è ricalcolato
-                    dai totali. I valori parziali sono marcati con un asterisco e gli importi restano separati per
-                    valuta.</p>
-            </details>
+
         </section>
     </main>
     <dialog id="contractDetail" aria-labelledby="detailTitle">

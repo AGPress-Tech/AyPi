@@ -457,8 +457,6 @@ async function load() {
         if (!result.ok) throw Error(result.error);
         rows = result.rows;
         loaded = true;
-        $("sourceInfo").textContent =
-            `Gestionale · Distinte base e componenti · ${num(rows.length, 0)} righe lette · ${new Date(result.queriedAt).toLocaleString("it-IT")}`;
         setStatus();
         render();
         if ($<HTMLDialogElement>("bomDetail").open) renderDetail();

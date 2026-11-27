@@ -143,7 +143,7 @@ app.whenReady().then(async () => {
         await run("document.querySelector('#export').click()"); await wait("document.querySelector('#status').textContent.includes('Esportate')"); assert.equal(exportCount, 1);
         failNext = true; await run("document.querySelector('#refresh').click()"); await wait("document.querySelector('#status').textContent.includes('Restano visibili')"); assert.equal(await run("document.querySelectorAll('.customer-chart-grid canvas').length"), 5);
         await run("document.querySelector('[data-view=history]').click()"); assert((await run("document.querySelector('#analysisTable').textContent")).includes('2025'));
-        await run("document.querySelector('[data-view=quality]').click()"); assert((await run("document.querySelector('#content').textContent")).includes('I documenti collegati si consultano'));
+        assert.equal(await run("document.querySelector('[data-view=quality]')"), null);
         win.setSize(1060, 740); await run("document.querySelector('[data-view=dashboard]').click()"); await wait("document.querySelectorAll('.customer-chart-grid canvas').length===5");
         rows[154].quantity = 7;
         await run("document.querySelector('#refresh').click()"); await wait("!document.querySelector('#refresh').disabled && document.querySelector('#kpis').textContent.includes('Senza U.M.')");

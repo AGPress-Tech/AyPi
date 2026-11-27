@@ -36,7 +36,7 @@
                 class="active">Dashboard</button><button data-view="due">Notifiche <span
                     id="dueBadge"></span></button><button data-view="records">Manutenzioni effettuate</button><button
                 data-view="machines">Macchine</button><button data-view="plans">Manutenzioni previste</button><button
-                data-view="info">Origine e verifiche</button></nav>
+                data-view="info">Importazione</button></nav>
         <section id="filters" class="filters">
             <div class="filter-row">
                 <details class="filter-picker">
@@ -132,18 +132,8 @@
             <div id="dueGroups" class="maintenance-due-groups"></div>
         </section>
         <section id="infoPanel" class="panel maintenance-info" hidden>
-            <h2>Origine e verifiche</h2><button id="importAccess">Confronta e importa Access</button>
+            <h2>Importazione</h2><button id="importAccess">Confronta e importa Access</button>
             <div id="importInfo"></div>
-            <p>Il confronto aggiunge soltanto macchine, manutenzioni e allegati mancanti. Le differenze sulle voci già
-                presenti vengono segnalate senza sovrascrivere modifiche, frequenze o eliminazioni effettuate in AyPi.
-            </p>
-            <p>Le frequenze sono espresse in mesi di calendario. Le scadenze derivano esclusivamente dall’ultima
-                esecuzione e dalla frequenza attuale. Le manutenzioni mai eseguite o senza frequenza non producono
-                notifiche. Le vecchie scadenze manuali e i dati storici anomali vengono esclusi dall’importazione.</p>
-            <p>Gli allegati di rete restano nei percorsi originali. Gli allegati presenti soltanto in Access vengono
-                conservati nel database AyPi. Access rimane invariato e continua a essere utilizzabile dai client
-                precedenti. Le frequenze del catalogo importato sono inizialmente vuote: impostale nella sezione
-                Manutenzioni previste.</p>
             <div id="issues"></div>
         </section>
     </main>

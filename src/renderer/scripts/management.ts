@@ -153,7 +153,6 @@ const titles = {
     statement: "Conto economico",
     trends: "Andamento e anni",
     details: "Dettaglio conti",
-    quality: "Origine e verifiche",
 };
 const goals = createManagementGoals((group) => {
     const item = data!.groups.find((g) => g.name === group)!;
@@ -1525,62 +1524,6 @@ function details() {
         })),
     );
 }
-function quality() {
-    const q = data!.quality;
-    const values: [string, string][] = [
-        ["Origine dati", data!.source],
-        [
-            "Ultima modifica parametri Excel",
-            new Date(data!.modifiedAt).toLocaleString("it-IT"),
-        ],
-        [
-            "Ultima lettura riuscita",
-            new Date(data!.loadedAt).toLocaleString("it-IT"),
-        ],
-        ["Movimenti originali", number(q.total)],
-        ["Movimenti inclusi", number(q.included)],
-        ["Scritture di chiusura escluse", number(q.closing)],
-        ["Date non valide escluse", number(q.invalidDates)],
-        ["Regole di ripartizione", number(data!.rules.length)],
-        [
-            "Gruppi / categorie",
-            `${data!.groups.length} / ${data!.categories.length}`,
-        ],
-        [
-            "Conti senza regola",
-            `${number(q.unmatchedAccounts)} · saldo contabile complessivo ${euro(q.unmatchedValue)}`,
-        ],
-        ["Conti ripartiti oltre il 100%", number(q.overlappingAccounts)],
-        ...data!.years.map(
-            (y) =>
-                [
-                    `Copertura ${y}`,
-                    data!.periods[y]
-                        .map((m) => months[m - 1].slice(0, 3))
-                        .join(" · "),
-                ] as [string, string],
-        ),
-    ];
-    if (data!.sourceKind === "sql")
-        values.unshift(
-            ["Sorgente", "SQL Server tramite backend"],
-            [
-                "Query eseguita",
-                new Date(data!.queriedAt!).toLocaleString("it-IT"),
-            ],
-            ["File parametri", data!.parameterSource || ""],
-        );
-    const baseCount = values.length - data!.years.length;
-    const core = values.slice(0, baseCount);
-    $("qualityInfo").innerHTML =
-        `<dl>${core.map(([key, value]) => `<dt>${escape(key)}</dt><dd>${escape(value)}</dd>`).join("")}</dl><details><summary>Copertura mensile dei ${data!.years.length} esercizi</summary><div class="coverage-grid">${values
-            .slice(baseCount)
-            .map(
-                ([key, value]) =>
-                    `<p><b>${escape(key)}</b><br>${escape(value)}</p>`,
-            )
-            .join("")}</div></details>`;
-}
 function render() {
     if (!data) return;
     const context = JSON.stringify([
@@ -1621,7 +1564,6 @@ function render() {
     else if (view === "statement") statement();
     else if (view === "trends") trends();
     else if (view === "details") details();
-    else quality();
 }
 function setView(next: string) {
     view = next;

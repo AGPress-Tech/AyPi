@@ -1,4 +1,4 @@
-import { MANAGER_INFORMATION, MANAGER_TABLES } from "../../main/modules/analysis-manager-model";
+import { MANAGER_TABLES } from "../../main/modules/analysis-manager-model";
 import { romeDay } from "../../main/modules/analysis-overview-model";
 import { continueTableOnScroll } from "./table-scroll-loader";
 const ipc = require("electron").ipcRenderer;
@@ -8,10 +8,9 @@ const managerNumber = (value: number, monetary = false) => (monetary ? orderedAm
 const esc = (value: unknown) => String(value ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!);
 export function mountManagerDashboard(host: HTMLElement, allowed: () => boolean, refreshLinks = () => {}) {
     const today = romeDay();
-    host.innerHTML = `<form class="hub-control-form" data-manager-form><label>Ordini acquisiti e produzione · dal<input type="date" name="from" value="${Number(today.slice(0, 4)) - 2}-01-01" required></label><label>Al<input type="date" name="to" value="${today}" required></label><button type="submit" class="primary" data-manager-load>Carica riepilogo</button><button type="button" data-manager-export disabled>Esporta Excel</button></form><p role="status" data-manager-status>Carica il riepilogo aziendale.</p><div data-manager-results hidden><div class="manager-kpis" data-manager-kpis></div><div class="manager-panels" data-manager-panels></div></div><details class="hub-information"><summary>Informazioni, fonti e criteri del riepilogo</summary><div data-manager-info></div></details>`;
+    host.innerHTML = `<form class="hub-control-form" data-manager-form><label>Ordini acquisiti e produzione · dal<input type="date" name="from" value="${Number(today.slice(0, 4)) - 2}-01-01" required></label><label>Al<input type="date" name="to" value="${today}" required></label><button type="submit" class="primary" data-manager-load>Carica riepilogo</button><button type="button" data-manager-export disabled>Esporta Excel</button></form><p role="status" data-manager-status>Carica il riepilogo aziendale.</p><div data-manager-results hidden><div class="manager-kpis" data-manager-kpis></div><div class="manager-panels" data-manager-panels></div></div>`;
     const form = host.querySelector<HTMLFormElement>("form")!, status = host.querySelector<HTMLElement>("[data-manager-status]")!;
     const loadButton = host.querySelector<HTMLButtonElement>("[data-manager-load]")!, exportButton = host.querySelector<HTMLButtonElement>("[data-manager-export]")!;
-    const information = host.querySelector<HTMLElement>("[data-manager-info]")!; information.textContent = MANAGER_INFORMATION;
     let busy = false, exporting = false, loaded: any = null;
     const filters = () => ({ from: (form.elements.namedItem("from") as HTMLInputElement).value, to: (form.elements.namedItem("to") as HTMLInputElement).value, asOf: romeDay() });
     const refreshAccess = () => { loadButton.disabled = busy || !allowed(); exportButton.disabled = busy || exporting || !loaded || !allowed(); };
@@ -44,7 +43,6 @@ export function mountManagerDashboard(host: HTMLElement, allowed: () => boolean,
             continueTableOnScroll({ table: element, total: rows.length, initial: Math.min(100, rows.length), append });
         }
         host.querySelector<HTMLElement>("[data-manager-results]")!.hidden = false;
-        information.textContent = MANAGER_INFORMATION + ` Dati letti: ${new Date(data.queriedAt).toLocaleString("it-IT")}. Magazzino: ${data.stockPeriod ? `${data.stockPeriod.year}/${data.stockPeriod.period}` : "non disponibile"}.`;
         refreshLinks();
     }
     form.onsubmit = async event => {

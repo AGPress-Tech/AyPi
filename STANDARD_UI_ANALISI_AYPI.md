@@ -1,5 +1,13 @@
 # Standard UI dei moduli di analisi AyPi
 
+## Rimozione delle informazioni sui dati (27 novembre 2026)
+
+Estensione agli altri moduli: rimosse anche le schede Origine e indicatori di Analisi cliente e Origine e verifiche di Torneria e Controllo di gestione, oltre ai pannelli equivalenti dei prototipi archiviati. Le verifiche della sorgente restano nei dati e negli export, senza schede dedicate nell'interfaccia.
+
+Manutenzioni, Strumenti di misura, Utensili e Valutazione fornitori eliminano i paragrafi esplicativi della precedente scheda Origine e verifiche. La scheda diventa Importazione e conserva il confronto/import Access, i risultati e le anomalie operative.
+
+Richiesta implementata: rimuovere le sezioni espandibili «Informazioni sui dati», comprese le varianti sui calcoli e sul listino, dalle analisi operative e dai dettagli annidati di Esplora gestionale. Non lasciare spazi o controlli vuoti. Questa richiesta sostituisce la precedente convenzione che esponeva le spiegazioni in tali sezioni. I dati, i calcoli e le informazioni degli export rimangono invariati.
+
 ## Analisi per operatori: catalogo semplice e listino nel cliente (26 novembre 2026, revisione corrente)
 
 La revisione corrente mantiene il catalogo originale di sette moduli: Esplora gestionale, Venduto per articolo, Offerte per articolo, Analisi per cliente, BoM e Articoli, Contratti barra, Giacenze. Non esporre nuove voci Manager, Impegni clienti o un catalogo generale dei prezzi. Bot AGPress nascosto e non inizializzato; disattivare l'accesso alle analisi di supporto da tutti gli assistenti, compreso doppio clic e scorciatoia da tastiera di Arona/Plana. Conservare le normali reazioni, pat-pat e personalizzazione del nome Blue Archive. I prototipi descritti sotto restano archiviati e senza punti di accesso attivi.

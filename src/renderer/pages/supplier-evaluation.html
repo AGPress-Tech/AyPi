@@ -37,7 +37,7 @@
                 class="active">Dashboard</button><button data-view="supplier-analysis" disabled>Analisi
                 fornitore</button><button data-view="records">Valutazioni DDT</button><button
                 data-view="suppliers">Fornitori</button><button data-view="critical">Fornitori critici</button><button
-                data-view="settings">Livelli e tipologie</button><button data-view="info">Origine e verifiche</button>
+                data-view="settings">Livelli e tipologie</button><button data-view="info">Importazione</button>
         </nav>
         <section class="filters" id="filters">
             <div class="filter-row">
@@ -202,25 +202,8 @@
             </div>
         </section>
         <section id="infoPanel" class="panel supplier-info" hidden>
-            <h2>Origine e verifiche</h2><button id="importAccess">Confronta e importa Access</button>
+            <h2>Importazione</h2><button id="importAccess">Confronta e importa Access</button>
             <div id="importInfo"></div>
-            <p>La criticità assegnata al fornitore è distinta dalla segnalazione critica: quest’ultima viene ricalcolata
-                sulle valutazioni filtrate e sulle regole attuali. La regola iniziale riprende Access: almeno tre
-                ritardi, tre consegne in pessimo stato oppure tre non conformità, conteggiati separatamente.</p>
-            <p>I valori percentuali delle regole usano le sole valutazioni con un esito presente nella dimensione
-                interessata. Una valutazione può concorrere a più cause; il totale delle valutazioni rimane distinto dal
-                numero di segnalazioni. I fornitori senza valutazioni non sono considerati positivi: le percentuali sono
-                mancanti.</p>
-            <p>I KPI Puntualità, Conformità e Stato merce mostrano la percentuale degli esiti migliori fra quelli
-                presenti nella rispettiva dimensione. Il Rating generale è la media aritmetica delle tre percentuali,
-                calcolata prima dell’arrotondamento ed escludendo le dimensioni senza esiti; senza dati mostra un valore
-                mancante.</p>
-            <p>L’anagrafica viene letta dal gestionale, senza crearvi o modificarvi fornitori. I nomi storici senza
-                corrispondenza univoca sono conservati e collegabili dalla scheda di classificazione. Il confronto
-                Access aggiunge solo le voci mancanti e segnala le differenze senza sovrascrivere modifiche o
-                eliminazioni effettuate in AyPi.</p>
-            <p>Gli allegati di rete restano al loro percorso; quelli locali sono conservati nel database centrale.
-                Access rimane invariato.</p>
         </section>
     </main>
     <dialog id="loginDialog" class="aypi-login-dialog" aria-labelledby="loginTitle">

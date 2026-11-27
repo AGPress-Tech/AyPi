@@ -31,23 +31,13 @@ function applyStation(snapshot = station) {
     managerDashboard.refreshAccess();
 }
 function message(value: string, error = false) { $("overviewStatus").textContent = value; $("overviewStatus").classList.toggle("error", error); }
-function information(result?: any) {
-    $("overviewInformation").textContent = check().value === "negative-stock"
-        ? `Saldo per singola posizione: iniziale + entrate − uscite, nell'ultimo periodo disponibile${result?.selected ? ` (${result.selected.year} / ${result.selected.period})` : ""}. Proprietà e unità restano separate. Il saldo non rappresenta il materiale libero né attribuisce la causa agli impegni.`
-        : `Righe clienti non annullate e non evase, con residuo positivo, senza limite all'anno dell'ordine. Per i ritardi: consegna prevista precedente al ${applied?.asOf || romeDay()} (giorno di Roma). Le righe prive di data si consultano nel controllo dedicato.`;
-    if (["customer-prices", "current-prices"].includes(check().value)) $("overviewInformation").textContent = "Listini nominativi e prezzi specifici cliente/articolo, compreso lo storico. Il cliente collegato deriva dall'assegnazione del listino in anagrafica; un listino non assegnato resta visibile con il suo nome. La validità interseca testata e riga; date ERP anteriori al 1900 sono assenza di limite. Prezzo originale, scaglione, unità, IVA e sconti restano distinti: nessun prezzo netto o confronto automatico con gli ordini. La valuta dei prezzi specifici non è presente nella fonte e rimane non indicata; nessuna valuta viene presunta.";
-    if (check().value === "customer-commitments") $("overviewInformation").textContent = "Domanda clienti attuale: quantità ordinata meno consegnata, con residuo positivo, escludendo testate e righe annullate o evase, senza limite all'anno. Allocato e prelevato sono valori ERP distinti e non vanno sommati alla domanda. Sono esclusi offerte, simulazioni e fabbisogni di produzione. Le giacenze e il loro calcolo rimangono nella vista separata.";
-    if (check().value === "reserved-stock") $("overviewInformation").textContent = `Impegnata clienti del saldo ERP (ReservedSaleOrd), ultimo periodo disponibile${result?.selected ? ` (${result.selected.year}/${result.selected.period})` : ""}. Ogni posizione mantiene magazzino, unità e proprietà. Il soggetto del saldo non identifica automaticamente il cliente che ha effettuato la richiesta. Questi valori e le righe d'ordine sono due letture della domanda: non vanno sommati e non costituiscono una ricostruzione di assegnazioni fisiche.`;
-    $("overviewInformation").append(` Riferimento: ${applied?.asOf || romeDay()}.`);
-    if (result?.queriedAt) $("overviewInformation").append(` Dati letti: ${new Date(result.queriedAt).toLocaleString("it-IT")}.`);
-}
 function resetResults() {
     if (["customer-prices", "current-prices"].includes(check().value)) $("overviewSearch").setAttribute("placeholder", "Cliente, articolo, nome o codice listino");
     if (check().value === "customer-commitments") $("overviewSearch").setAttribute("placeholder", "Cliente, ordine, articolo o magazzino");
     token++; loading = false; rows = []; total = 0; applied = null; sort = [];
     $("overviewResults").hidden = true; $("overviewTable").innerHTML = "<thead></thead><tbody></tbody>";
     $("overviewTableSorting")?.remove(); $("overviewLoad").textContent = "Carica controllo";
-    message("Scegli un controllo e carica i dati."); information(); applyStation();
+    message("Scegli un controllo e carica i dati."); applyStation();
 }
 function selectArea(id: string) {
     area = OVERVIEW_AREAS.find(item => item.id === id)!;
@@ -112,7 +102,7 @@ async function load(append = false, refresh = false) {
         $("overviewApplied").textContent = [query.search ? `Ricerca: ${query.search}` : "", query.article ? `Articolo: ${query.article}` : "", query.customerCode ? `Cliente: ${query.customerCode}` : ""].filter(Boolean).join(" · ");
         $("overviewProgress").textContent = `${rows.length.toLocaleString("it-IT")} di ${total.toLocaleString("it-IT")} righe`;
         $("overviewProgress").nextElementSibling?.toggleAttribute("hidden", rows.length >= total);
-        $("overviewLoad").textContent = "Aggiorna controllo"; information(result); message(total ? "" : "Nessuna riga corrisponde al controllo.");
+        $("overviewLoad").textContent = "Aggiorna controllo"; message(total ? "" : "Nessuna riga corrisponde al controllo.");
     } catch (error) { if (current === token) message(`${(error as Error).message}${applied ? " Restano visibili i risultati precedenti." : ""}`, true); }
     finally { if (current === token) { loading = false; $("overviewResults").setAttribute("aria-busy", "false"); applyStation(); } }
 }
