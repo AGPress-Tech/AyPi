@@ -86,8 +86,10 @@ export function updateSystemDefinition(
     host: HTMLElement,
     applyDefaultTolerance = false,
 ) {
-    const defaultTolerance = host.querySelector<HTMLInputElement>("[name=tolerance]")?.value || "";
-    const defaultUnit = host.querySelector<HTMLInputElement>("[name=unit]")?.value.trim() || "";
+    const defaultTolerance =
+        host.querySelector<HTMLInputElement>("[name=tolerance]")?.value || "";
+    const defaultUnit =
+        host.querySelector<HTMLInputElement>("[name=unit]")?.value.trim() || "";
     for (const row of host.querySelectorAll<HTMLElement>(
         "[data-system-point]",
     )) {
@@ -110,13 +112,17 @@ export function updateSystemDefinition(
             el.disabled = qualitative;
             el.required = key === "nominal" && !qualitative;
         }
-        const tolerance = row.querySelector<HTMLInputElement>("[data-p=tolerance]")!;
-        const unit = row.querySelector<HTMLInputElement>("[data-p=unit]")!.value.trim();
+        const tolerance =
+            row.querySelector<HTMLInputElement>("[data-p=tolerance]")!;
+        const unit = row
+            .querySelector<HTMLInputElement>("[data-p=unit]")!
+            .value.trim();
         if (
             !qualitative &&
             (!unit || unit === defaultUnit) &&
             (applyDefaultTolerance ||
-                (tolerance.dataset.defaultInitialized !== "true" && !tolerance.value))
+                (tolerance.dataset.defaultInitialized !== "true" &&
+                    !tolerance.value))
         )
             tolerance.value = defaultTolerance;
         tolerance.dataset.defaultInitialized = "true";

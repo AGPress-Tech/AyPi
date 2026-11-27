@@ -4,7 +4,10 @@ import {
 } from "../../main/modules/analysis-sorting";
 export type SortColumn = { key: string; label: string; summaryLabel?: string };
 /** The same visual boundary connects a source row to each kind of inline detail. */
-export function setExpandedTableRow(source: HTMLTableRowElement, detail: HTMLTableRowElement | null) {
+export function setExpandedTableRow(
+    source: HTMLTableRowElement,
+    detail: HTMLTableRowElement | null,
+) {
     source.classList.toggle("analysis-expanded-source", !!detail);
     detail?.classList.add("analysis-expanded-detail");
 }

@@ -7,6 +7,7 @@ import { installAnalysisLinks } from "../modules/analysis-links";
 import { contextFromAnalysisElement } from "../modules/document-links";
 import { openDocumentDetails, openAnalysisDocumentDialog } from "../modules/document-details";
 import { renderStockCustomerCommitments } from "../modules/stock-customer-commitments";
+import { bindAnalysisColumnPicker } from "../modules/analysis-column-picker";
 import { explorerColumns, explorerDefaultColumns, explorerRelations, formatExplorerValue as format } from "../../main/modules/erp-explorer/presentation";
 const ipc = require("electron").ipcRenderer;
 const $ = (id: string) => document.getElementById(id)!;
@@ -34,6 +35,7 @@ class ExplorerTable {
         <section class="erp-results"><div class="section-heading"><h2 data-title>Caricamento…</h2><details class="columns-picker"><summary>Colonne <span data-column-count></span></summary><div class="column-picker" data-columns></div></details></div><p role="status"></p><div class="table-scroll" tabindex="0"><table class="erp-table"><thead></thead><tbody></tbody></table></div><div class="results-footer"><span data-progress></span><button type="button" data-more hidden>Carica altri risultati</button></div><details class="analysis-information"><summary>Informazioni sui dati</summary><div class="erp-information">Lettura del gestionale senza modifiche. Le tabelle mostrano i dati operativi essenziali. Le quantit? sono visualizzate con massimo tre decimali; tooltip ed Excel conservano i valori originali. Magazzino: un solo esercizio e periodo alla volta; gli impegni clienti mostrano gli ordini aperti attuali. Ricevuto, ordinato in produzione e prodotto sono campi distinti, mostrati solo se presenti nella fonte. I contratti sono identificati dal suffisso /C.</div></details></section>`;
         this.form = host.querySelector("form")!; this.result = host.querySelector(".erp-results")!; this.table = host.querySelector("table")!; this.scroll = this.table.closest<HTMLElement>(".table-scroll")!;
         this.status = host.querySelector("[role=status]")!; this.progress = host.querySelector("[data-progress]")!; this.more = host.querySelector("[data-more]")!;
+        bindAnalysisColumnPicker(host.querySelector<HTMLDetailsElement>(".columns-picker")!);
         let specialHost: HTMLElement = this.form;
         if (nested) {
             const advanced = document.createElement("details"); advanced.className = "advanced-filters";
@@ -61,7 +63,10 @@ class ExplorerTable {
         });
         this.renderContext(); this.mountPresets();
     }
-    private storage(key: string) { return `aypi.erp-explorer.${key}.${key === "columns" ? "v2" : "v1"}:${this.dataset}`; }
+    private get flatDocumentLines() {
+        return this.fixedContext && ["saleLines", "purchaseLines", "offerLines", "contractLines"].includes(this.dataset);
+    }
+    private storage(key: string) { return `aypi.erp-explorer.${key}.${key === "columns" ? this.flatDocumentLines ? "v3-document-lines" : "v2" : "v1"}:${this.dataset}`; }
     syncExport() {
         if (active !== this) return;
         let changed = true; try { changed = !this.applied || JSON.stringify(this.read()) !== JSON.stringify(this.applied); } catch {}
@@ -97,7 +102,7 @@ class ExplorerTable {
             if (!append) { this.applied = input; this.rows = []; this.scroll.scrollTop = 0; }
             if (!this.visible.length) {
                 let saved: unknown; try { saved = JSON.parse(localStorage.getItem(this.storage("columns")) || "null"); } catch {}
-                this.visible = (Array.isArray(saved) ? saved : explorerDefaultColumns[this.dataset] || this.columns.slice(0, 6).map(c => c.key)).filter(key => this.columns.some(c => c.key === key));
+                this.visible = (Array.isArray(saved) ? saved : this.flatDocumentLines ? this.columns.map(c => c.key) : explorerDefaultColumns[this.dataset] || this.columns.slice(0, 6).map(c => c.key)).filter(key => this.columns.some(c => c.key === key));
                 if (!this.visible.length) this.visible = this.columns.slice(0, 6).map(c => c.key);
             }
             this.visible = this.visible.filter(key => this.columns.some(c => c.key === key));
@@ -138,9 +143,10 @@ class ExplorerTable {
             tr.innerHTML = columns.map((c, i) => {
                 const context = explorerCellContext(this.dataset, row, c.key), document = context?.documentId && context.documentKind;
                 const erpIdentity = context?.purchaseOrderId || context?.productionOrderId || context?.contractId;
-                return `<td data-erp-field="${esc(c.key)}" class="${c.kind === "number" ? "numeric" : ""}" title="${esc(row[c.key])}">${i === 0 ? '<button type="button" class="erp-expand" aria-expanded="false" aria-label="Esplodi dettaglio">▸</button>' : ""}${document ? `<button type="button" class="document-link" data-document-kind="${context.documentKind}" data-document-id="${context.documentId}" data-document-no="${esc(context.documentNo)}">${esc(format(row[c.key], c))}</button>` : erpIdentity ? `<button type="button" class="document-link" data-erp-document="${esc(c.key)}">${esc(format(row[c.key], c))}</button>` : esc(format(row[c.key], c))}</td>`;
+                return `<td data-erp-field="${esc(c.key)}" class="${c.kind === "number" ? "numeric" : ""}" title="${esc(row[c.key])}">${i === 0 && !this.flatDocumentLines ? '<button type="button" class="erp-expand" aria-expanded="false" aria-label="Esplodi dettaglio">▸</button>' : ""}${document ? `<button type="button" class="document-link" data-document-kind="${context.documentKind}" data-document-id="${context.documentId}" data-document-no="${esc(context.documentNo)}">${esc(format(row[c.key], c))}</button>` : erpIdentity ? `<button type="button" class="document-link" data-erp-document="${esc(c.key)}">${esc(format(row[c.key], c))}</button>` : esc(format(row[c.key], c))}</td>`;
             }).join("");
-            tr.querySelector<HTMLButtonElement>(".erp-expand")!.onclick = event => { event.stopPropagation(); this.expand(tr, row); };
+            const expand = tr.querySelector<HTMLButtonElement>(".erp-expand");
+            if (expand) expand.onclick = event => { event.stopPropagation(); this.expand(tr, row); };
             tr.querySelectorAll<HTMLButtonElement>("[data-document-id]").forEach(button => button.onclick = () => openDocumentDetails(button, button.dataset.documentKind as "order" | "offer", Number(button.dataset.documentId), button.dataset.documentNo!));
             tr.querySelectorAll<HTMLButtonElement>("[data-erp-document]").forEach(button => button.onclick = () => {
                 const context = explorerCellContext(this.dataset, row, button.dataset.erpDocument!)!;

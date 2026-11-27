@@ -1,0 +1,24 @@
+.assistant-analysis-confirm {
+  width: min(480px, calc(100vw - 40px));
+  max-height: calc(100vh - 40px);
+  padding: 0;
+  overflow: auto;
+  color: var(--ink);
+  background: var(--white);
+  border: 1px solid var(--line);
+  border-top: 4px solid var(--blue);
+  border-radius: 6px 20px 6px 20px;
+  box-shadow: var(--shadow);
+  font-family: inherit;
+}
+.assistant-analysis-confirm::backdrop { background: rgba(23, 36, 61, .4); }
+.assistant-analysis-confirm header { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 16px 22px; border-bottom: 1px solid var(--line); background: var(--pale); }
+.assistant-analysis-confirm .eyebrow { color: var(--blue); font-size: 11px; letter-spacing: 1.5px; }
+.assistant-confirm-close { border: 1px solid var(--line); border-radius: 5px; width: 30px; height: 30px; background: var(--white); color: var(--ink); font-size: 22px; cursor: pointer; }
+.assistant-confirm-body { padding: 24px 22px; }
+.assistant-confirm-body h2 { margin: 0 0 13px; font-size: 24px; line-height: 1.35; letter-spacing: -.5px; }
+.assistant-confirm-body p { margin: 0; color: var(--muted); font-size: 13px; line-height: 1.6; }
+.assistant-analysis-confirm footer { position: static; display: flex; justify-content: flex-end; gap: 10px; padding: 0 22px 22px; border: 0; background: transparent; min-height: 0; height: auto; }
+.assistant-analysis-confirm footer button { min-width: 86px; min-height: 36px; padding: 8px 16px; border-radius: 5px; font: 700 13px/1.2 "Segoe UI", sans-serif; cursor: pointer; }
+.assistant-analysis-confirm button:focus-visible { outline: 2px solid var(--blue); outline-offset: 3px; }
+:root[data-interface-theme="agpress"] .assistant-analysis-confirm::backdrop { background: rgba(51, 47, 43, .4); }

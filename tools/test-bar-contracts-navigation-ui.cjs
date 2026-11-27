@@ -15,8 +15,8 @@ require('../dist-ts/modules/file-manager/backend-client').requestAypiBackend = a
         erpRequests.push(body);
         const header = body.dataset === 'purchaseOrders' && String(body.where?.PurchaseOrdId) === '20';
         const lines = body.dataset === 'purchaseLines' && String(body.where?.PurchaseOrdId) === '20';
-        const rows = header ? [{ PurchaseOrdId: 20, InternalOrdNo: '26/ACQ', Supplier: '0666', OrderDate: '2026-01-01', Delivered: false }] : lines ? [{ PurchaseOrdId: 20, Line: 1, Item: 'BT042OA', Description: 'Barra 42', Qty: 1000, UoM: 'KG' }, { PurchaseOrdId: 20, Line: 2, Item: 'OTHER', Description: 'Altra voce dello stesso ordine', Qty: 10, UoM: 'KG' }] : [];
-        const columns = lines ? [{ key: 'PurchaseOrdId', kind: 'number' }, { key: 'Line', kind: 'number' }, { key: 'Item', kind: 'text' }, { key: 'Description', kind: 'text' }, { key: 'Qty', kind: 'number' }, { key: 'UoM', kind: 'text' }] : [{ key: 'PurchaseOrdId', label: 'ID', kind: 'number' }, { key: 'InternalOrdNo', label: 'Ordine', kind: 'text' }, { key: 'Supplier', label: 'Fornitore', kind: 'text' }, { key: 'OrderDate', label: 'Data', kind: 'date' }, { key: 'Delivered', label: 'Evaso', kind: 'boolean' }];
+        const rows = header ? [{ PurchaseOrdId: 20, InternalOrdNo: '26/ACQ', Supplier: '0666', OrderDate: '2026-01-01', Delivered: false }] : lines ? [{ PurchaseOrdId: 20, Line: 1, Item: 'BT042OA', Description: 'Barra 42', Qty: 1000, UoM: 'KG', UnitValue: 7.897, TaxableAmount: 7897, _DocumentNo: '26/ACQ', DeliveredQty: 100, Currency: 'EUR' }, { PurchaseOrdId: 20, Line: 2, Item: 'OTHER', Description: 'Altra voce dello stesso ordine', Qty: 10, UoM: 'KG', UnitValue: 3, TaxableAmount: 30, _DocumentNo: '26/ACQ', DeliveredQty: 2, Currency: 'EUR' }] : [];
+        const columns = lines ? [{ key: '_DocumentNo', kind: 'text' }, { key: 'DeliveredQty', kind: 'number' }, { key: 'Currency', kind: 'text' }, { key: 'PurchaseOrdId', kind: 'number' }, { key: 'Line', kind: 'number' }, { key: 'Item', kind: 'text' }, { key: 'Description', kind: 'text' }, { key: 'Qty', kind: 'number' }, { key: 'UoM', kind: 'text' }, { key: 'UnitValue', kind: 'number' }, { key: 'TaxableAmount', kind: 'number' }] : [{ key: 'PurchaseOrdId', label: 'ID', kind: 'number' }, { key: 'InternalOrdNo', label: 'Ordine', kind: 'text' }, { key: 'Supplier', label: 'Fornitore', kind: 'text' }, { key: 'OrderDate', label: 'Data', kind: 'date' }, { key: 'Delivered', label: 'Evaso', kind: 'boolean' }];
         return { dataset: body.dataset, label: lines ? 'Voci ordine fornitore' : 'Ordini fornitori', columns, rows, total: rows.length, offset: 0, keys: lines ? ['PurchaseOrdId', 'Line'] : ['PurchaseOrdId'], relations: header ? [{ id: 'lines', label: 'Tutte le voci ordine', target: 'purchaseLines', map: { PurchaseOrdId: 'PurchaseOrdId' } }] : [], queriedAt: '2026-11-26T10:00:00Z' };
     }
 
@@ -66,6 +66,10 @@ app.whenReady().then(async () => {
         await until(() => run(explorer, "document.querySelectorAll('.analysis-document-dialog .erp-nested tbody tr').length===2"));
         assert(await run(explorer, "document.querySelector('.analysis-document-dialog').textContent.includes('OTHER')"));
         assert.equal(await run(explorer, "document.querySelector('.analysis-document-dialog [data-erp-field=Delivered]').textContent"), 'No');
+        assert.equal(await run(explorer, "document.querySelectorAll('.analysis-document-dialog .erp-nested .erp-expand').length"), 0);
+        assert.equal(await run(explorer, "document.querySelector('.analysis-document-dialog .erp-nested td[data-erp-field=UnitValue]').textContent"), '7,897');
+        assert.equal(await run(explorer, "document.querySelector('.analysis-document-dialog .erp-nested td[data-erp-field=TaxableAmount]').textContent"), '7.897');
+
         await run(explorer, "document.querySelector('.analysis-document-dialog .dialog-actions button').click()");
         await until(() => run(explorer, "!document.querySelector('.analysis-document-dialog')"));
         const headerReads = erpRequests.filter(request => request.dataset==='purchaseOrders').length;
@@ -102,6 +106,19 @@ app.whenReady().then(async () => {
                 const geometry=await run(explorer, "(()=>{const d=document.querySelector('.analysis-document-dialog').getBoundingClientRect();return {w:d.width,h:d.height,vw:innerWidth,vh:innerHeight,overflow:document.body.scrollWidth>innerWidth}})()");
                 assert(geometry.w>=geometry.vw-40&&geometry.h>=geometry.vh-40&&!geometry.overflow,JSON.stringify(geometry));
                 fs.writeFileSync(path.join(folder, `purchase-order-${theme}-${width}.png`),(await explorer.webContents.capturePage()).toPNG());
+                await run(explorer, "document.querySelector('.analysis-document-dialog .erp-nested .columns-picker summary').click()");
+                await until(() => run(explorer, "document.querySelector('.analysis-document-dialog .erp-nested .column-picker').matches(':popover-open')"));
+                const menuGeometry=await run(explorer, "(()=>{const p=document.querySelector('.analysis-document-dialog .erp-nested .column-picker'),inputs=[...p.querySelectorAll('input')],last=inputs.at(-1);p.scrollTop=p.scrollHeight;const r=p.getBoundingClientRect(),i=last.getBoundingClientRect();return {count:inputs.length,selected:inputs.filter(i=>i.checked).length,top:r.top,bottom:r.bottom,vh:innerHeight,visible:document.elementFromPoint(i.left+i.width/2,i.top+i.height/2)===last}})()");
+                assert.equal(menuGeometry.count,9); assert.equal(menuGeometry.selected,9);
+                assert(menuGeometry.visible&&menuGeometry.top>=0&&menuGeometry.bottom<=menuGeometry.vh,JSON.stringify(menuGeometry));
+                await run(explorer, "[...document.querySelectorAll('.analysis-document-dialog .erp-nested .column-picker input')].at(-1).click()");
+                assert.equal(await run(explorer, "document.querySelector('.analysis-document-dialog .erp-nested [data-column-count]').textContent"),'8');
+                await run(explorer, "[...document.querySelectorAll('.analysis-document-dialog .erp-nested .column-picker input')].at(-1).click();new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)))");
+                fs.writeFileSync(path.join(folder, `purchase-columns-${theme}-${width}.png`),(await explorer.webContents.capturePage()).toPNG());
+                explorer.webContents.focus(); explorer.webContents.sendInputEvent({type:'keyDown',keyCode:'Escape'}); explorer.webContents.sendInputEvent({type:'keyUp',keyCode:'Escape'});
+                await until(() => run(explorer, "!document.querySelector('.analysis-document-dialog .erp-nested .columns-picker').open"));
+                assert(await run(explorer, "document.querySelector('.analysis-document-dialog').open"),'Escape closes the picker while keeping the order open');
+
             }
         }
         // Unknown articles do not offer a contract destination.

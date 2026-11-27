@@ -593,7 +593,7 @@ function applyPersonalName() {
 
 function showBubble(text: string, duration = 2600) {
     if (!bubble) return;
-    bubble.textContent = personalize(text);
+    bubble.textContent = IS_AGPRESS_INTERFACE ? text.replace(/,?\s*Sensei/gi, "") : personalize(text);
     bubble.classList.add("visible");
     if (bubbleTimer) clearTimeout(bubbleTimer);
     bubbleTimer = setTimeout(
@@ -796,6 +796,8 @@ function initializeAssistant(character: string) {
     assistant.classList.remove("ready", "failed");
     assistant.setAttribute("aria-label", `Assistente ${displayName}`);
     assistantPlayer.setAttribute("aria-label", `Parla con ${displayName}`);
+    assistantPlayer.removeAttribute("title");
+    assistantPlayer.removeAttribute("aria-keyshortcuts");
     if (assistantLabel)
         assistantLabel.textContent = `${displayName.toUpperCase()} // LOADING`;
     if (assistantBlinkTimer) clearTimeout(assistantBlinkTimer);
@@ -2012,6 +2014,7 @@ document
     });
 
 assistantPlayer?.addEventListener("contextmenu", (event) => {
+    if (IS_AGPRESS_INTERFACE) return;
     event.preventDefault();
     openNamePanel();
 });
@@ -2308,4 +2311,4 @@ window.addEventListener("DOMContentLoaded", () => {
 
 export {};
 
-window.addEventListener("beforeunload", () => assistant3d?.dispose());
+window.addEventListener("beforeunload", () => { assistant3d?.dispose(); });

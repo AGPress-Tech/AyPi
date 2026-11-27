@@ -1,4 +1,5 @@
 import { specialFilterEditor } from "../modules/analysis-special-filter-editor";
+import { mountCustomerPriceList } from "../modules/customer-price-list";
 import { CUSTOMER_SPECIAL_COLUMNS } from "../../main/modules/customer-analysis/model";
 import { analysisHtmlLegend } from "../modules/analysis-html-legend";
 import { enhanceDetailTable } from "../modules/analysis-detail-filters";
@@ -190,9 +191,10 @@ function updateBusy() {
     (input("loadCustomer") as any).disabled =
         busy || !select("customerResults").value;
     (input("refresh") as any).disabled = busy || !loaded;
-    (input("export") as any).disabled = busy || !loaded;
+    (input("export") as any).disabled = busy || !loaded || view === "prices" && !priceList.canExport();
     select("customerResults").disabled = busy;
 }
+const priceList = mountCustomerPriceList($("customerPrices"), () => updateBusy());
 const specialEditor = specialFilterEditor($("moreFilters").querySelector<HTMLElement>(".advanced-filter-popup")!, CUSTOMER_SPECIAL_COLUMNS, () => { if (readFilters()) applyFilters(); });
 function readFilters() {
     const candidate: CustomerFilters = {
@@ -1639,6 +1641,19 @@ function render() {
         .forEach((el) =>
             el.classList.toggle("active", el.dataset.view === view),
         );
+    const prices = view === "prices";
+    $("customerPrices").hidden = !prices;
+    $("content").hidden = prices;
+    $("chartsMenu").hidden = prices;
+    $("layoutToggle").hidden = prices;
+    document.querySelector<HTMLElement>(".customer-selector .read-period")!.hidden = prices;
+    priceList.setCustomer(loaded?.customer || null);
+    if (prices) {
+        $("filters").hidden = true; $("kpis").hidden = true;
+        if (!busy) status(preferencesWarning);
+        if (loaded) { $("customerIdentity").textContent = loaded.customer + " · " + loaded.name; $("customerIdentity").title = loaded.customer + " · " + loaded.name; }
+        priceList.show(); updateBusy(); return;
+    }
     if (!loaded) return;
     $("filters").hidden = false;
     $("kpis").hidden = false;
@@ -1773,7 +1788,7 @@ async function loadCustomer(refresh = false) {
         syncFilters();
         render();
         status(
-            rows.length
+            view === "prices" || rows.length
                 ? preferencesWarning
                 : `Nessuna riga articolo per il cliente nel periodo di lettura. ${preferencesWarning}`,
         );
@@ -1957,6 +1972,7 @@ async function persist(next: CustomerPreferences, message: string) {
     }
 }
 async function exportData() {
+    if (view === "prices") { await priceList.exportData(); return; }
     if (!loaded || busy || !readFilters()) return;
     busy = true;
     updateBusy();
@@ -2001,7 +2017,7 @@ input("customerSearch").addEventListener("input", () => {
 });
 select("customerResults").addEventListener("change", updateBusy);
 $("loadCustomer").addEventListener("click", () => void loadCustomer());
-$("refresh").addEventListener("click", () => void loadCustomer(true));
+$("refresh").addEventListener("click", () => { if (view === "prices") void priceList.refresh(); else void loadCustomer(true); });
 $("export").addEventListener("click", () => void exportData());
 $("close").addEventListener("click", () => ipc.send("customer-analysis-close"));
 document.querySelectorAll<HTMLElement>("[data-view]").forEach((el) =>

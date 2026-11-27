@@ -15,6 +15,7 @@ import { documentLinksQuery } from "./document-links";
 import { documentLinesQuery } from "./document-lines";
 import { readErpExplorer } from "./erp-explorer";
 import { bomAnalysisQuery } from "./bom-analysis";
+import { businessTableQuery, managerQuery, validateBusinessRequest } from "./business-analysis";
 const sql = require("mssql");
 
 export type AnalyticsDataset = {
@@ -155,7 +156,7 @@ export function createAnalyticsService(
                 request.input(
                     p.name,
                     p.type === "text"
-                        ? driver.VarChar(128 * 2 + 2)
+                        ? driver.VarChar(256 * 2 + 2)
                         : p.type === "date"
                           ? driver.Date
                           : p.type === "int"
@@ -472,6 +473,19 @@ export function createAnalyticsService(
         }
     }
     return {
+        async businessAnalysis(input: unknown) {
+            const filters = validateBusinessRequest(input);
+            if (filters.mode !== "manager") return executeArticleQuery(businessTableQuery(filters) as any);
+            if (articleRequests >= 3) throw Error("Altre ricerche sono in corso. Riprovare tra qualche secondo.");
+            articleRequests++;
+            try {
+                const definition = managerQuery(filters), request = (await pool()).request();
+                for (const key of ["from", "to", "asOf"] as const) request.input(key, driver.Date, new Date(`${filters[key]}T00:00:00Z`));
+                const result = await request.query(definition.sql);
+                const names = ["backlog", "acquired", "monthly", "customers", "backlogValues", "backlogUnits", "purchases", "production"];
+                return { ...Object.fromEntries(names.map((key, index) => [key, (result.recordsets[index] || []).map((row: any) => Object.fromEntries(Object.entries(row).map(([field, value]) => [field, field === "rows" && typeof value === "string" && Number.isSafeInteger(Number(value)) ? Number(value) : value])))])), period: { from: filters.from, to: filters.to, asOf: filters.asOf }, queriedAt: new Date().toISOString() };
+            } finally { articleRequests--; }
+        },
         async erpExplorer(input: unknown) {
             if (articleRequests >= 3) throw Error("Altre ricerche sono in corso. Riprovare tra qualche secondo.");
             articleRequests++;

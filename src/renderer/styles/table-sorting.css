@@ -247,3 +247,11 @@ tr.analysis-expanded-part>td:first-child {
 tr.analysis-expanded-end>td {
   border-bottom: 2px solid var(--ops-accent)
 }
+
+.analysis-column-popover {
+  color: var(--ops-ink, #222);
+  overflow: auto;
+  overscroll-behavior: contain;
+  scroll-padding: 6px;
+  box-shadow: 0 8px 24px #0002
+}

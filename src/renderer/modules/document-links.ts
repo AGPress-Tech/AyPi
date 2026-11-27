@@ -19,7 +19,9 @@ const num = (v: unknown) =>
         : new Intl.NumberFormat("it-IT", { maximumFractionDigits: 20 }).format(
               Number(v),
           );
-const quantityFormat = new Intl.NumberFormat("it-IT", { maximumFractionDigits: 3 });
+const quantityFormat = new Intl.NumberFormat("it-IT", {
+    maximumFractionDigits: 3,
+});
 export const formatDocumentQuantity = (value: unknown) => {
     if (value == null) return "—";
     const numeric = Number(value);

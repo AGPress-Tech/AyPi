@@ -12,6 +12,9 @@ import { requestAypiBackend } from "./file-manager/backend-client";
 import { registerAnalysisUiPreferences } from "./analysis-ui-preferences";
 import { canAccessStationEntry } from "./workstations";
 import { stationCatalog } from "./workstations-model";
+import { registerAnalysisOverview } from "./analysis-overview";
+
+import { registerManagerAnalysis } from "./analysis-manager";
 
 const modules = new Map<
     AnalysisTarget,
@@ -22,6 +25,9 @@ const modules = new Map<
     }
 >();
 const additionalSources = new Set<(event: any) => boolean>();
+const businessWindows = new Map<AnalysisTarget, BrowserWindow>();
+const businessTitles = { "customer-prices": "Listino clienti", "customer-commitments": "Impegni clienti", manager: "Manager" };
+const ownsBusiness = (event: any) => [...businessWindows.values()].some(window => !window.isDestroyed() && event.sender === window.webContents);
 const destinationCache = new AnalysisDestinationCache(destinationExists);
 const contextMenu = new AnalysisContextMenu();
 const preparations = new Map<number, number>();
@@ -33,7 +39,8 @@ export function registerAnalysisSource(owns: (event: any) => boolean) {
     additionalSources.add(owns);
 }
 let main: BrowserWindow | null = null,
-    hub: BrowserWindow | null = null;
+    hub: BrowserWindow | null = null,
+    overview: BrowserWindow | null = null;
 const ready = new Set<number>(),
     pending = new Map<number, AnalysisContext>(),
     observed = new Set<number>();
@@ -236,6 +243,11 @@ export async function relatedAnalysisMenuItems(
         add("stock-analysis", "Mostra giacenze associate al cliente", {
             customerCode: context.customerCode,
         });
+    if (context.article || context.customerCode) {
+        const exact = context.article ? { article: context.article } : { customerCode: context.customerCode };
+        add("customer-prices", "Mostra listino clienti collegato", exact);
+        add("customer-commitments", "Mostra impegni clienti collegati", exact);
+    }
     if (context.customerCode || context.customerName)
         add("customer-analysis", "Mostra cliente in Analisi per cliente", {
             ...(context.customerCode
@@ -320,9 +332,14 @@ export function canOpenAnalysis(sender: WebContents) {
     return (
         sender === main?.webContents ||
         sender === hub?.webContents ||
+        sender === overview?.webContents ||
+        ownsBusiness({ sender }) ||
         [...modules.values()].some((m) => m.owns({ sender })) ||
         [...additionalSources].some((owns) => owns({ sender }))
     );
+}
+function ownsDocumentSource(event: any) {
+    return ((event.sender === overview?.webContents || ownsBusiness(event)) && (canAccessStationEntry("article-orders") || canAccessStationEntry("customer-commitments"))) || [...modules.values()].some(module => module.owns(event));
 }
 export function registerAnalysisNavigation(
     mainWindow: BrowserWindow,
@@ -330,6 +347,12 @@ export function registerAnalysisNavigation(
 ) {
     registerAnalysisUiPreferences();
     main = mainWindow;
+    registerAnalysisSource(event => event.sender === overview?.webContents || ownsBusiness(event));
+    const clearOverview = registerAnalysisOverview(event => event.sender === overview?.webContents || ownsBusiness(event), target => {
+        const entry = stationCatalog.find(item => item.target === target);
+        return !!entry && canAccessStationEntry(entry.id);
+    });
+    registerManagerAnalysis(event => event.sender === overview?.webContents || event.sender === businessWindows.get("manager")?.webContents, () => canAccessStationEntry("manager"));
     ipcMain.on("analysis-context-ready", (event) => {
         if (![...modules.values()].some((m) => m.owns(event))) return;
         const contents = event.sender,
@@ -342,13 +365,12 @@ export function registerAnalysisNavigation(
             contents.send("analysis-open-context", context);
         }
     });
-    ipcMain.handle("commercial-analysis-open", async (event) => {
-        if (!canOpenAnalysis(event.sender))
-            return { ok: false, error: "Finestra non autorizzata." };
-        if (hub && !hub.isDestroyed()) {
-            hub.maximize();
-            hub.show();
-            hub.focus();
+    const openHub = async (operational: boolean, business?: keyof typeof businessTitles) => {
+        const existing = business ? businessWindows.get(business) : operational ? overview : hub;
+        if (existing && !existing.isDestroyed()) {
+            existing.maximize();
+            existing.show();
+            existing.focus();
             return { ok: true };
         }
         const win = new BrowserWindow({
@@ -357,12 +379,12 @@ export function registerAnalysisNavigation(
             minWidth: 920,
             minHeight: 600,
             show: false,
-            title: "AyPi · Analisi AGPress",
+            title: business ? `AyPi · ${businessTitles[business]}` : operational ? "AyPi · Analisi gestionali" : "AyPi · Analisi AGPress",
             icon: icon(),
             backgroundColor: "#f2f8fc",
             webPreferences: { nodeIntegration: true, contextIsolation: false },
         });
-        hub = win;
+        if (business) businessWindows.set(business, win); else if (operational) overview = win; else hub = win;
         win.setMenu(null);
         win.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
         win.webContents.on("will-navigate", (e) => e.preventDefault());
@@ -373,7 +395,9 @@ export function registerAnalysisNavigation(
             }
         });
         win.on("closed", () => {
+            if (business && businessWindows.get(business) === win) businessWindows.delete(business);
             if (hub === win) hub = null;
+            if (overview === win) { overview = null; clearOverview(); }
         });
         const theme = /[?&]theme=bluearchive(?:&|$)/.test(
             mainWindow.webContents.getURL(),
@@ -382,15 +406,22 @@ export function registerAnalysisNavigation(
             : "standard";
         await win.loadFile(
             path.join(__dirname, "..", "pages", "commercial-analysis.html"),
-            { query: { theme } },
+            { query: { theme, view: business || (operational ? "operational" : "catalog") } },
         );
         return { ok: true };
+    };
+    ipcMain.handle("commercial-analysis-open", async event => {
+        if (!canOpenAnalysis(event.sender)) return { ok: false, error: "Finestra non autorizzata." };
+        return openHub(false);
     });
+    ipcMain.handle("analysis-overview-open", async () => ({ ok: false, error: "Analisi di supporto temporaneamente disattivate." }));
     ipcMain.on("commercial-analysis-close", (event) => {
+        for (const window of businessWindows.values()) if (event.sender === window.webContents) window.close();
         if (event.sender === hub?.webContents) hub.close();
+        if (event.sender === overview?.webContents) overview.close();
     });
     ipcMain.handle("analysis-document-links", async (event, payload) => {
-        if (![...modules.values()].some((m) => m.owns(event)))
+        if (!ownsDocumentSource(event))
             return { ok: false, error: "Finestra non autorizzata." };
         try {
             return {
@@ -410,7 +441,7 @@ export function registerAnalysisNavigation(
         }
     });
     ipcMain.handle("analysis-document-lines", async (event, payload) => {
-        if (![...modules.values()].some((m) => m.owns(event)))
+        if (!ownsDocumentSource(event))
             return { ok: false, error: "Finestra non autorizzata." };
         try {
             if (

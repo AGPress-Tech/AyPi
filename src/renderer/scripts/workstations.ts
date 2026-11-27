@@ -72,6 +72,7 @@ export function setupWorkstations(onChange: () => void) {
             (!!entry.parent &&
                 matches(catalog.find((parent) => parent.id === entry.parent)!));
         el("tbody").innerHTML = catalog
+            .filter((entry) => !entry.retired)
             .filter(
                 (entry) =>
                     !query ||

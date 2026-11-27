@@ -10,6 +10,11 @@ export const ANALYSIS_TARGETS = [
     "processing-cycles",
     "tooling",
     "erp-explorer",
+    "customer-prices",
+    "customer-commitments",
+    "manager",
+    "measurement-instruments",
+    "maintenance",
 ] as const;
 export type AnalysisTarget = (typeof ANALYSIS_TARGETS)[number];
 export type AnalysisContext = {

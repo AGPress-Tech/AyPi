@@ -10,6 +10,7 @@ import { requestAypiBackend } from "../file-manager/backend-client";
 import { getAddressEntry } from "../file-manager/address-book";
 import { excelDateCell, formatExcelNumbers } from "../analysis-excel";
 import { validateWorkspace } from "../analysis-ui-model";
+import { registerAnalysisTarget } from "../analysis-navigation";
 const execute = promisify(execFile);
 export function registerMeasurementIpc(
     mainWindow: BrowserWindow,
@@ -986,5 +987,6 @@ export function registerMeasurementIpc(
                   }
               }),
     );
+    registerAnalysisTarget("measurement-instruments", open, owns, async () => false);
     return { open };
 }

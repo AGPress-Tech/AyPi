@@ -2,7 +2,12 @@ const assert = require('node:assert/strict');
 const { stationCatalog, defaultStationConfig, validateStationConfig, stationAccess } = require('../dist-ts/modules/workstations-model');
 assert.equal(new Set(stationCatalog.map(e => e.id)).size, stationCatalog.length);
 const config = defaultStationConfig(), rules = config.profiles[0].rules;
-for (const entry of stationCatalog) assert.equal(stationAccess(config, entry.id), 'accessible');
+for (const entry of stationCatalog) assert.equal(stationAccess(config, entry.id), entry.retired ? 'hidden' : 'accessible');
+for (const id of ['customer-prices', 'customer-commitments', 'manager']) {
+    rules[id] = 'accessible';
+    assert.equal(stationAccess(config, id), 'hidden', 'Archived analyses cannot be reactivated by legacy station rules');
+}
+assert.deepEqual(validateStationConfig(config), config, 'Keep legacy station profiles importable');
 rules['section:analisi'] = 'hidden';
 assert.equal(stationAccess(config, 'article-orders'), 'accessible', 'Unassigned PCs have all modules ON regardless of stored profiles');
 config.activeId = 'default';

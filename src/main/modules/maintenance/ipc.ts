@@ -11,6 +11,7 @@ import { requestAypiBackend } from "../file-manager/backend-client";
 import { getAddressEntry } from "../file-manager/address-book";
 import { excelDateCell } from "../analysis-excel";
 import { validateWorkspace } from "../analysis-ui-model";
+import { registerAnalysisTarget } from "../analysis-navigation";
 const execute = promisify(execFile);
 export function registerMaintenanceIpc(
     mainWindow: BrowserWindow,
@@ -513,5 +514,6 @@ export function registerMaintenanceIpc(
             }
         });
     });
+    registerAnalysisTarget("maintenance", open, owns, async () => false);
     return { open };
 }

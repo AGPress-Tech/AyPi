@@ -1,0 +1,27 @@
+.business-detailed-filters { position: relative; align-self: end; font-size: 12px; }
+.business-detailed-filters>summary { padding: 9px 12px; border: 1px solid var(--ops-line); border-radius: 6px; cursor: pointer; background: var(--ops-panel,#fff); white-space: nowrap; }
+.business-filter-content { position: fixed; top: 105px; left: 24px; z-index: 40; padding: 16px; width: min(580px,calc(100vw - 48px)); max-height: calc(100vh - 140px); overflow: auto; background: var(--ops-panel,#fff); border: 1px solid var(--ops-line); border-radius: 9px; box-shadow: 0 14px 35px rgba(0,0,0,.15); }
+.business-standard-fields { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 0 16px; }
+.business-filter-field { min-width: 0; border-bottom: 1px solid var(--ops-line); padding: 9px 0; }
+.business-filter-field>summary { display: flex; justify-content: space-between; gap: 8px; cursor: pointer; font-size: 12px; }
+.business-filter-field>summary::before { content: '›'; color: var(--ops-accent); }
+.business-filter-field[open]>summary::before { content: '⌄'; }
+.business-filter-field .badge { margin-left: auto; padding: 2px 6px; border-radius: 9px; background: var(--ops-soft); color: var(--ops-muted); font-size: 10px; }
+.business-filter-field .analysis-filter-mode { margin: 10px 0; }
+.business-filter-field :is(input,select) { width: 100%; min-width: 0; }
+.business-detailed-filters label { display: flex; flex-direction: column; gap: 4px; font-size: 11px; color: var(--ops-muted); }
+.business-detailed-filters :is(input,select) { padding: 6px 8px; border: 1px solid var(--ops-line); border-radius: 5px; background: var(--ops-panel,#fff); color: var(--ops-ink); font: inherit; min-height: 32px; }
+.business-rule { display: grid; grid-template-columns: minmax(0,1fr) 32px; gap: 7px; margin: 9px 0; align-items: end; }
+.business-rule>label { min-width: 0; }
+.business-rule>label:first-child { grid-column: 1 / -1; }
+.business-rule>[data-to-label] { grid-column: 1; }
+.business-rule .remove-rule { grid-column: 2; grid-row: 2; width: 32px; height: 32px; min-height: 0; padding: 0; border-radius: 5px; }
+.business-filter-field .add-rule { margin-top: 5px; width: 100%; font-size: 11px; color: var(--ops-accent); border-color: var(--ops-accent); }
+.business-filter-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-top: 12px; }
+.business-filter-presets { margin-top: 8px; font-size: 12px; }
+.business-filter-presets>summary { cursor: pointer; padding: 6px 0; }
+.business-filter-presets>div { display: flex; flex-wrap: wrap; align-items: end; gap: 8px; padding: 10px 0; }
+.business-filter-presets label { display: flex; flex-direction: column; gap: 5px; }
+.business-filter-presets [role=status] { flex-basis: 100%; color: var(--ops-muted); }
+.business-source-period { display: flex; gap: 8px; align-items: end; }
+.business-source-period label { max-width: 100px; }

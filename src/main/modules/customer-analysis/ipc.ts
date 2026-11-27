@@ -13,6 +13,8 @@ import path from "path";
 import fs from "fs";
 import * as XLSX from "xlsx";
 import { requestAypiBackend } from "../file-manager/backend-client";
+import { registerAnalysisOverview } from "../analysis-overview";
+import { canAccessStationEntry } from "../workstations";
 import {
     registerAnalysisTarget,
     canOpenAnalysis,
@@ -53,6 +55,11 @@ export function registerCustomerAnalysisIpc(
     let writes: Promise<unknown> = Promise.resolve();
     const owns = (event: any) =>
         window && !window.isDestroyed() && event.sender === window.webContents;
+    registerAnalysisOverview(owns, target => target === "customer-prices" && !!cache && canAccessStationEntry("customer-analysis"), requestAypiBackend, "customer-prices", input => {
+        if (!cache) throw Error("Seleziona e analizza prima un cliente.");
+        if (input?.customerCode && input.customerCode !== cache.customer) throw Error("Il cliente del listino non corrisponde al cliente selezionato.");
+        return { ...input, customerCode: cache.customer };
+    });
     const file = () =>
         path.join(
             app.getPath("userData"),

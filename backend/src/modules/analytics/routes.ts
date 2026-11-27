@@ -21,6 +21,7 @@ import { validateDocumentLinkRequest } from "./document-links";
 import { validateExplorerRequest } from "./erp-explorer";
 import { validateBomRequest } from "./bom-analysis";
 import { validateBarContractsRequest } from "./bar-contracts";
+import { validateBusinessRequest } from "./business-analysis";
 const compress = promisify(gzip);
 const digest = (value: string) => createHash("sha256").update(value).digest();
 
@@ -28,6 +29,14 @@ export function registerAnalyticsRoutes(
     router: Router,
     service = analyticsService,
 ) {
+    router.register("POST", "/api/erp/business-analysis", async (req, res) => {
+        let input;
+        try { input = validateBusinessRequest(await readJsonBody(req)); }
+        catch (error) { sendJson(res, 400, { error: (error as Error).message }); return; }
+        res.setHeader("Cache-Control", "no-store");
+        try { sendJson(res, 200, await service.businessAnalysis(input)); }
+        catch (error) { sendAnalyticsUnavailable(req, res, error, { error: "Lettura dell'analisi gestionale non riuscita. Verificare il backend e riprovare." }); }
+    });
     router.register("POST", "/api/erp/explorer", async (req, res) => {
         let input;
         try { input = validateExplorerRequest(await readJsonBody(req)); }

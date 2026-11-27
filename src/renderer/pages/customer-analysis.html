@@ -13,6 +13,8 @@
     <link rel="stylesheet" href="../styles/turning-analysis.css">
     <link rel="stylesheet" href="../styles/table-sorting.css">
     <link rel="stylesheet" href="../styles/customer-analysis.css">
+    <link rel="stylesheet" href="../styles/business-detailed-filters.css">
+    <link rel="stylesheet" href="../styles/customer-price-list.css">
     <link rel="stylesheet" href="../styles/utilities/analysis-html-legend.css">
 </head>
 
@@ -50,7 +52,7 @@
             <nav class="module-tabs" aria-label="Sezioni analisi cliente"><button class="active"
                     data-view="dashboard">Dashboard</button><button data-view="documents">Documenti</button><button
                     data-view="lines">Righe e consegne</button><button data-view="articles">Articoli</button><button
-                    data-view="history">Storico e confronti</button><button data-view="quality">Origine e
+                    data-view="history">Storico e confronti</button><button data-view="prices">Listino cliente</button><button data-view="quality">Origine e
                     indicatori</button></nav>
         </div>
         <section id="filters" class="filters" aria-label="Filtri condivisi" hidden>
@@ -87,6 +89,7 @@
         </section>
         <div id="status" role="status" aria-live="polite" hidden></div>
         <section id="kpis" class="kpis" aria-label="Indicatori del cliente" hidden></section>
+        <section id="customerPrices" hidden aria-label="Listino del cliente"></section>
         <div id="content">
             <div class="loading-panel">
                 <div class="loading-mark">AyPi</div>

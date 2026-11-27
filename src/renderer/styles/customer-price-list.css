@@ -1,0 +1,18 @@
+#customerPrices[hidden] { display: none !important; }
+.customer-price-panel { overflow: visible; }
+.customer-price-controls { position: relative; padding: 12px; border-bottom: 1px solid var(--ops-line); }
+.customer-price-controls>label { display: flex; flex-direction: column; gap: 5px; font-size: 11px; color: var(--ops-muted); }
+.customer-price-controls input, .customer-price-controls select { min-height: 32px; min-width: 0; }
+.customer-price-controls .columns-picker { margin-left: auto; }
+.customer-price-controls .columns-picker summary { cursor: pointer; padding: 8px; }
+.customer-price-controls .column-picker { display: grid; gap: 9px; padding: 12px; background: white; color: var(--ops-ink); border: 1px solid var(--ops-line); border-radius: 8px; }
+.customer-price-controls .column-picker label { display: flex; align-items: center; gap: 8px; font-size: 12px; }
+.customer-price-controls .column-picker input { min-height: 0; }
+.customer-price-panel [data-price-status], .customer-price-progress, .customer-price-panel>.analysis-information { padding: 8px 12px; font-size: 12px; color: var(--ops-muted); margin: 0; }
+.customer-price-panel [data-price-status]:empty { display: none; }
+.customer-price-panel .customer-price-scroll { max-height: calc(100vh - 330px); min-height: 150px; }
+.customer-price-panel table thead { position: sticky; top: 0; z-index: 4; }
+.customer-price-panel table :is(td,th) { border-right: 1px solid var(--ops-line); }
+.customer-price-panel .analysis-information p { line-height: 1.6; }
+.customer-window :is(#content,#filters,#kpis)[hidden] { display: none !important; }
+.customer-window .read-period[hidden] { display: none !important; }

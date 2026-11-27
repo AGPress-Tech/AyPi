@@ -24,14 +24,17 @@ export function installAnalysisLinks(
         }
         // Ignore quick passes over a table; warm only the cell where the pointer
         // or keyboard focus settles. No menu or navigation is triggered here.
-        prepareTimer = setTimeout(() => ipc.send("analysis-context-menu-prepare", context), 100);
+        prepareTimer = setTimeout(
+            () => ipc.send("analysis-context-menu-prepare", context),
+            100,
+        );
     };
     document.addEventListener("pointerover", prepare);
     document.addEventListener("focusin", prepare);
-    document.addEventListener("pointerdown", event => {
+    document.addEventListener("pointerdown", (event) => {
         if (event.button !== 2) cancel();
     });
-    document.addEventListener("keydown", event => {
+    document.addEventListener("keydown", (event) => {
         if (event.key === "Escape") cancel();
     });
     document.addEventListener("contextmenu", (event) => {

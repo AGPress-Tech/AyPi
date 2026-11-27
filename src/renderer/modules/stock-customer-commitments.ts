@@ -109,7 +109,12 @@ export async function renderStockCustomerCommitments(
             if (!button) return;
             const id = Number(button.dataset.openOrder);
             if (Number.isSafeInteger(id) && id > 0)
-                openDocumentDetails(button, "order", id, button.dataset.orderNo || "");
+                openDocumentDetails(
+                    button,
+                    "order",
+                    id,
+                    button.dataset.orderNo || "",
+                );
         });
     } catch (error) {
         if (host.isConnected) {

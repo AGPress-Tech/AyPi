@@ -18,6 +18,7 @@ export type StationEntry = {
     channel?: string;
     addressKey?: string;
     target?: string;
+    retired?: boolean;
 };
 export const stationCatalog: StationEntry[] = [];
 for (const [key, page] of Object.entries(createHomePages("standard"))) {
@@ -71,6 +72,9 @@ for (const [target, label] of Object.entries({
     "bar-contracts": "Situazione Contratti Barra in Corso",
     "stock-analysis": "Giacenze",
     "erp-explorer": "Esplora gestionale",
+    "customer-prices": "Listino clienti",
+    "customer-commitments": "Impegni clienti",
+    manager: "Manager",
 })) {
     stationCatalog.push({
         id: target,
@@ -78,10 +82,14 @@ for (const [target, label] of Object.entries({
         target,
         parent: "commercial-analysis-open",
         channel: `${target}-open`,
+        // Retain legacy rule identities when importing existing station profiles.
+        retired: ["customer-prices", "customer-commitments", "manager"].includes(target),
     });
 }
 for (const [target, id] of Object.entries({
     "supplier-evaluation": "moduli.openFornitori",
+    "maintenance": "moduli.openManutenzioni",
+    "measurement-instruments": "moduli.openTarature",
     "processing-cycles": "infoarticoli.openCicli",
     tooling: "moduli.openUtensili",
     "turning-analysis": "turning-analysis-open",
@@ -156,6 +164,7 @@ export function validateStationConfig(value: any): StationConfig {
     return { version: 1, activeId: value.activeId, profiles };
 }
 export function stationAccess(config: StationConfig, id: string): AccessState {
+    if (stationCatalog.find((entry) => entry.id === id)?.retired) return "hidden";
     const profile = config.profiles.find((p) => p.id === config.activeId);
     if (!profile) return "accessible";
     let state: AccessState = profile.rules[id] || "accessible";

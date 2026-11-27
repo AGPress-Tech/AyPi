@@ -17,6 +17,10 @@ require('../dist-ts/modules/file-manager/backend-client').requestAypiBackend = a
     if (endpoint.endsWith('customer-search')) return { customers: [{ code: 'C001', name: 'Cliente Test' }], more: false };
     if (endpoint.endsWith('customer-analysis')) return { rows: [...normalized(orders, 'order'), ...normalized(offers, 'offer')], customer: 'C001', queriedAt: '2026-11-10T10:00:00Z' };
     if (endpoint.endsWith('document-links')) return { rows: f.kind === 'order' ? normalized(offers, 'offer') : normalized(orders, 'order'), queriedAt: '2026-11-10T10:00:00Z' };
+    if (endpoint.endsWith('business-analysis')) {
+        const rows = orders.filter(row => (!f.article || row.article === f.article) && (!f.customerCode || row.customerCode === f.customerCode));
+        return { rows, total: rows.length, queriedAt: '2026-11-10T10:00:00Z' };
+    }
     const source = endpoint.endsWith('article-offers') ? offers : orders, rows = source.filter(r => !f.articles?.length || f.articles.some(a => a.value === r.article));
     return { rows, total: rows.length, offset: 0, queriedAt: '2026-11-10T10:00:00Z' };
 };

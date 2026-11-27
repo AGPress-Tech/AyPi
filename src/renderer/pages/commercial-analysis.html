@@ -13,6 +13,7 @@
   <link rel="stylesheet" href="../styles/turning-analysis.css">
   <link rel="stylesheet" href="../styles/utilities/aypi-module-cards.css">
   <link rel="stylesheet" href="../styles/commercial-analysis.css">
+  <link rel="stylesheet" href="../styles/business-detailed-filters.css">
   <link rel="stylesheet" href="../styles/workstations.css">
   <link rel="stylesheet" href="../styles/utilities/aypi-home-background.css">
 </head>
@@ -30,7 +31,34 @@
     <div class="header-actions"><button id="close">Chiudi ×</button></div>
   </header>
   <main>
-    <section class="hub-catalog" aria-labelledby="modules-title">
+    <section id="operationalView" aria-labelledby="operationalTitle" hidden>
+      <div class="hub-introduction"><div><span class="eyebrow">DAL DATO ALLA DECISIONE</span><h2 id="operationalTitle">Da quale domanda partiamo?</h2></div><span class="hub-draft">Prima proposta</span></div>
+      <nav id="overviewAreas" class="hub-areas" aria-label="Aree operative"></nav>
+      <section class="hub-workspace" aria-labelledby="areaQuestion">
+        <div class="hub-workspace-heading"><div><h2 id="areaQuestion"></h2><p id="areaDescription"></p></div><span id="areaAvailability" class="hub-availability"></span></div>
+        <div id="areaLinks" class="hub-area-links" aria-label="Analisi collegate"></div>
+        <section id="managerDashboard" aria-label="Dashboard Manager" hidden></section>
+        <section id="overviewControl" aria-label="Controllo operativo">
+          <form id="overviewForm" class="hub-control-form">
+            <label>Controllo<select id="overviewCheck"></select></label>
+            <label class="hub-control-search">Ricerca<input id="overviewSearch" type="search" maxlength="128" placeholder="Articolo, descrizione, ordine o cliente"></label>
+            <div id="overviewDetailedFilters"></div>
+            <button type="submit" class="primary" id="overviewLoad">Carica controllo</button>
+            <button type="button" id="overviewExport" disabled>Esporta Excel</button>
+            <button type="button" id="overviewClearContext" hidden>Rimuovi contesto</button>
+          </form>
+          <p id="overviewStatus" role="status">Scegli un controllo e carica i dati.</p>
+          <div id="overviewResults" hidden>
+            <div class="hub-control-summary"><strong id="overviewCount"></strong><span id="overviewApplied"></span></div>
+            <div class="hub-control-scroll table-scroll" id="overviewScroll" tabindex="0" aria-label="Risultati del controllo"><table id="overviewTable" class="hub-control-table"><thead></thead><tbody></tbody></table></div>
+            <div class="hub-control-footer"><span id="overviewProgress"></span><span>Scorri per caricare le altre righe</span></div>
+          </div>
+          <details class="analysis-information hub-information"><summary>Criteri e dati del controllo</summary><div id="overviewInformation"></div></details>
+        </section>
+        <section class="hub-next-step" aria-labelledby="nextTitle"><div><span class="eyebrow">PROSSIMO SVILUPPO · DA PROGETTARE</span><h3 id="nextTitle"></h3><p id="nextBenefit"></p></div><div><strong>Da collegare e verificare</strong><p id="nextNeeded"></p></div></section>
+      </section>
+    </section>
+    <section class="hub-catalog" id="catalogView" aria-labelledby="modules-title">
       <div class="hub-section-heading">
         <h2 id="modules-title">Le tue analisi</h2><span>SCEGLI UN MODULO <i aria-hidden="true">↘</i></span>
       </div>
